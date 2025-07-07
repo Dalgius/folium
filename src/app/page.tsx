@@ -1,37 +1,58 @@
 
 "use client";
 
-import { useState } from 'react';
-import { Asset, AssetType } from '@/types';
-import { PlusCircle, BarChart2, RefreshCw } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Asset } from '@/types';
+import { PlusCircle, BarChart2 } from 'lucide-react';
+import { useToast } from "@/hooks/use-toast";
 
 import { AddAssetDialog } from '@/components/add-asset-dialog';
 import { AssetCard } from '@/components/asset-card';
 import { PortfolioSummary } from '@/components/portfolio-summary';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import type * as z from 'zod';
 import type { addAssetFormSchema } from '@/components/add-asset-dialog';
+import { getAssets, addAsset, updateAsset, deleteAsset } from '@/services/asset.service';
 
 export default function Home() {
-  const [assets, setAssets] = useState<Asset[]>([
-    { id: '1', name: 'Apple Inc.', ticker: 'AAPL', type: 'Azione', initialValue: 15000, currentValue: 17500, quantity: 10, purchasePrice: 1500, purchaseDate: new Date('2023-01-10').toISOString() },
-    { id: '2', name: 'Vanguard S&P 500', ticker: 'VOO', type: 'ETF', initialValue: 25000, currentValue: 26100, quantity: 50, purchasePrice: 500, purchaseDate: new Date('2023-02-20').toISOString() },
-    { id: '3', name: 'Conto Deposito', type: 'Conto Bancario', initialValue: 50000, currentValue: 50250 },
-    { id: '4', name: 'Alphabet Inc.', ticker: 'GOOGL', type: 'Azione', initialValue: 10000, currentValue: 9500, quantity: 10, purchasePrice: 1000, purchaseDate: new Date('2023-03-05').toISOString() },
-  ]);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
-  const handleAddAsset = (data: z.infer<typeof addAssetFormSchema>) => {
-    // La logica di vendita può essere implementata in futuro
+  const fetchAssets = async () => {
+    try {
+      setIsLoading(true);
+      const fetchedAssets = await getAssets();
+      setAssets(fetchedAssets);
+    } catch (error) {
+      console.error("Errore nel recupero degli asset:", error);
+      toast({
+        title: "Errore",
+        description: "Impossibile caricare i dati del portafoglio. Assicurati di aver configurato correttamente Firebase.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAssets();
+  }, []);
+
+  const handleAddAsset = async (data: z.infer<typeof addAssetFormSchema>) => {
     if (data.transactionType === 'Vendita') {
-      console.log("La vendita non è ancora implementata.");
+      toast({ title: "Funzione non disponibile", description: "La logica di vendita non è ancora implementata." });
       return;
     }
 
     const initialValue = data.quantity * data.purchasePrice;
-    const newAsset: Asset = {
-      id: Date.now().toString(),
+    
+    const newAssetData = {
       name: data.security,
-      type: 'Azione', // Hardcoded per ora
+      type: 'Azione' as const, // Hardcoded per ora
       ticker: data.security,
       quantity: data.quantity,
       purchasePrice: data.purchasePrice,
@@ -39,49 +60,84 @@ export default function Home() {
       initialValue: initialValue,
       currentValue: initialValue,
     };
-    setAssets(prevAssets => [...prevAssets, newAsset]);
+
+    try {
+      await addAsset(newAssetData);
+      toast({ title: "Successo", description: "Asset aggiunto correttamente." });
+      fetchAssets(); // Re-fetch assets to update the list
+    } catch (error) {
+      console.error("Errore nell'aggiunta dell'asset:", error);
+      toast({ title: "Errore", description: "Impossibile aggiungere l'asset.", variant: "destructive" });
+    }
   };
 
-  const handleUpdateAsset = (id: string, updatedData: Partial<Omit<Asset, 'id' | 'type' | 'name' | 'ticker'>>) => {
-    setAssets(prevAssets =>
-      prevAssets.map(asset => {
-        if (asset.id === id) {
-          const newAssetData = { ...asset, ...updatedData };
+  const handleUpdateAsset = async (id: string, updatedData: Partial<Omit<Asset, 'id'>>) => {
+     try {
+        const assetToUpdate = assets.find(a => a.id === id);
+        if (!assetToUpdate) return;
+        
+        const quantity = updatedData.quantity ?? assetToUpdate.quantity;
+        const purchasePrice = updatedData.purchasePrice ?? assetToUpdate.purchasePrice;
+        
+        const dataWithRecalculatedValues: Partial<Omit<Asset, 'id'>> = { ...updatedData };
 
-          const quantity = updatedData.quantity ?? asset.quantity;
-          const purchasePrice = updatedData.purchasePrice ?? asset.purchasePrice;
-
-          if (quantity !== undefined && purchasePrice !== undefined) {
+        if (quantity !== undefined && purchasePrice !== undefined) {
             const newInitialValue = quantity * purchasePrice;
-            newAssetData.initialValue = newInitialValue;
-            // Quando si modificano i dati di base, si potrebbe voler ricalcolare il valore corrente
-            // Per semplicità, lo reimpostiamo al nuovo valore iniziale.
-            newAssetData.currentValue = newInitialValue;
-          }
-          
-          return newAssetData;
+            dataWithRecalculatedValues.initialValue = newInitialValue;
+            dataWithRecalculatedValues.currentValue = newInitialValue;
         }
-        return asset;
-      })
-    );
+        
+        await updateAsset(id, dataWithRecalculatedValues);
+        toast({ title: "Successo", description: "Asset aggiornato." });
+        fetchAssets();
+    } catch (error) {
+        console.error("Errore nell'aggiornamento dell'asset:", error);
+        toast({ title: "Errore", description: "Impossibile aggiornare l'asset.", variant: "destructive" });
+    }
+  };
+  
+  const handleRefreshAsset = async (id: string) => {
+    const asset = assets.find(a => a.id === id);
+    if (asset && (asset.type === 'Azione' || asset.type === 'ETF')) {
+        const changePercent = (Math.random() - 0.5) * 0.1;
+        const newCurrentValue = asset.currentValue * (1 + changePercent);
+        
+        try {
+            await updateAsset(id, { currentValue: newCurrentValue });
+            toast({ title: "Aggiornato", description: "Valore dell'asset aggiornato (simulato)." });
+            fetchAssets();
+        } catch (error) {
+            console.error("Errore nell'aggiornamento dell'asset:", error);
+            toast({ title: "Errore", description: "Impossibile aggiornare il valore dell'asset.", variant: "destructive" });
+        }
+    }
   };
 
-  const handleRefreshAsset = (id: string) => {
-    setAssets(prevAssets =>
-      prevAssets.map(asset => {
-        if (asset.id === id && (asset.type === 'Azione' || asset.type === 'ETF')) {
-          const changePercent = (Math.random() - 0.5) * 0.1;
-          const newCurrentValue = asset.currentValue * (1 + changePercent);
-          return { ...asset, currentValue: newCurrentValue };
-        }
-        return asset;
-      })
-    );
+  const handleDeleteAsset = async (id: string) => {
+    try {
+        await deleteAsset(id);
+        toast({ title: "Successo", description: "Asset eliminato." });
+        fetchAssets();
+    } catch (error) {
+        console.error("Errore nell'eliminazione dell'asset:", error);
+        toast({ title: "Errore", description: "Impossibile eliminare l'asset.", variant: "destructive" });
+    }
   };
 
-  const handleDeleteAsset = (id: string) => {
-    setAssets(prevAssets => prevAssets.filter(asset => asset.id !== id));
-  };
+  const renderSkeletons = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {[...Array(3)].map((_, i) => (
+        <Card key={i}>
+          <CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader>
+          <CardContent className="space-y-4">
+            <Skeleton className="h-8 w-1/2" />
+            <Skeleton className="h-16 w-full" />
+          </CardContent>
+          <CardFooter><Skeleton className="h-10 w-full" /></CardFooter>
+        </Card>
+      ))}
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -98,7 +154,9 @@ export default function Home() {
           <PortfolioSummary assets={assets} />
         </header>
 
-        {assets.length > 0 ? (
+        {isLoading ? (
+          renderSkeletons()
+        ) : assets.length > 0 ? (
           <>
             <h2 className="mb-4 text-2xl font-bold text-foreground font-headline">I Miei Asset</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
