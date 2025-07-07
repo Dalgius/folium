@@ -57,6 +57,7 @@ export default function Home() {
       quantity: data.quantity,
       purchasePrice: data.purchasePrice,
       purchaseDate: data.transactionDate.toISOString(),
+      currency: data.currency,
       initialValue: initialValue,
       currentValue: initialValue,
     };

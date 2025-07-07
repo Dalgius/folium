@@ -60,6 +60,9 @@ export const addAssetFormSchema = z.object({
   purchasePrice: z.coerce.number().positive({
     message: "Il prezzo deve essere un numero positivo.",
   }),
+  currency: z.enum(['EUR', 'USD'], {
+    required_error: "È richiesta una valuta.",
+  }),
 });
 
 
@@ -78,6 +81,7 @@ export function AddAssetDialog({ children, onAssetAdd }: AddAssetDialogProps) {
       security: "",
       quantity: 0,
       purchasePrice: 0,
+      currency: "EUR",
     },
   });
 
@@ -194,23 +198,44 @@ export function AddAssetDialog({ children, onAssetAdd }: AddAssetDialogProps) {
                 </FormItem>
               )}
             />
+            
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="purchasePrice"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Prezzo</FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="ad esempio 150,00" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="currency"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Valuta</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleziona valuta" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="EUR">EUR (€)</SelectItem>
+                        <SelectItem value="USD">USD ($)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
-            <FormField
-              control={form.control}
-              name="purchasePrice"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Prezzo di acquisto</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                       <Input type="number" placeholder="ad esempio 150,00" {...field} />
-                       <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground">EUR</span>
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
 
             <DialogFooter>
               <Button type="submit">Aggiungi Transazione</Button>

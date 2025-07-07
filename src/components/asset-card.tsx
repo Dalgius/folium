@@ -57,13 +57,13 @@ export function AssetCard({ asset, onRefresh, onDelete, onUpdate }: AssetCardPro
         <div>
           <p className="text-sm text-muted-foreground">Valore Corrente</p>
           <p className="text-3xl font-bold text-foreground">
-            {formatCurrency(asset.currentValue)}
+            {formatCurrency(asset.currentValue, asset.currency)}
           </p>
         </div>
          {asset.quantity && asset.purchasePrice && (
             <div className="text-sm text-muted-foreground">
                 <p>Quantità: {asset.quantity}</p>
-                <p>P. Acq.: {formatCurrency(asset.purchasePrice)}</p>
+                <p>P. Acq.: {formatCurrency(asset.purchasePrice, asset.currency)}</p>
                 {asset.purchaseDate && <p>Data Acq.: {format(parseISO(asset.purchaseDate), 'dd MMM yyyy', { locale: it })}</p>}
             </div>
         )}
@@ -79,7 +79,7 @@ export function AssetCard({ asset, onRefresh, onDelete, onUpdate }: AssetCardPro
                 {performance.toFixed(2)}%
               </span>
               <span className="text-xs text-muted-foreground">
-                {formatCurrency(valueChange)}
+                {formatCurrency(valueChange, asset.currency)}
               </span>
             </div>
           </div>

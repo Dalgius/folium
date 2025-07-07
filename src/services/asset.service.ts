@@ -23,6 +23,7 @@ const fromFirestore = (docSnap: DocumentSnapshot | QueryDocumentSnapshot): Asset
     id: docSnap.id,
     name: data.name,
     type: data.type,
+    currency: data.currency || 'EUR',
     initialValue: data.initialValue,
     currentValue: data.currentValue,
     ticker: data.ticker,

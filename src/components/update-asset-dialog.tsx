@@ -32,6 +32,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Calendar } from "./ui/calendar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 const formSchema = z.object({
   quantity: z.coerce.number().positive({
@@ -42,6 +43,9 @@ const formSchema = z.object({
   }),
   purchaseDate: z.date({
     required_error: "È richiesta una data di acquisto.",
+  }),
+  currency: z.enum(['EUR', 'USD'], {
+    required_error: "È richiesta una valuta.",
   }),
 });
 
@@ -60,6 +64,7 @@ export function UpdateAssetDialog({ children, asset, onAssetUpdate }: UpdateAsse
       quantity: asset.quantity,
       purchasePrice: asset.purchasePrice,
       purchaseDate: asset.purchaseDate ? parseISO(asset.purchaseDate) : new Date(),
+      currency: asset.currency,
     },
   });
   
@@ -69,6 +74,7 @@ export function UpdateAssetDialog({ children, asset, onAssetUpdate }: UpdateAsse
         quantity: asset.quantity,
         purchasePrice: asset.purchasePrice,
         purchaseDate: asset.purchaseDate ? parseISO(asset.purchaseDate) : new Date(),
+        currency: asset.currency,
       });
     }
   }, [isOpen, asset, form]);
@@ -77,7 +83,8 @@ export function UpdateAssetDialog({ children, asset, onAssetUpdate }: UpdateAsse
     onAssetUpdate(asset.id, {
         quantity: values.quantity,
         purchasePrice: values.purchasePrice,
-        purchaseDate: values.purchaseDate.toISOString()
+        purchaseDate: values.purchaseDate.toISOString(),
+        currency: values.currency,
     });
     setIsOpen(false);
   }
@@ -108,22 +115,42 @@ export function UpdateAssetDialog({ children, asset, onAssetUpdate }: UpdateAsse
               )}
             />
             
-            <FormField
-              control={form.control}
-              name="purchasePrice"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Prezzo di acquisto</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                       <Input type="number" placeholder="ad esempio 150,00" {...field} />
-                       <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground">EUR</span>
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="purchasePrice"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Prezzo</FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="ad esempio 150,00" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="currency"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Valuta</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleziona valuta" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="EUR">EUR (€)</SelectItem>
+                        <SelectItem value="USD">USD ($)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <FormField
               control={form.control}
