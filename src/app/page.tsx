@@ -2,9 +2,10 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Asset } from '@/types';
+import { Asset, AssetType } from '@/types';
 import { PlusCircle, BarChart2 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import { getQuote } from '@/services/finance.service';
 
 import { AddAssetDialog } from '@/components/add-asset-dialog';
 import { AssetCard } from '@/components/asset-card';
@@ -12,8 +13,7 @@ import { PortfolioSummary } from '@/components/portfolio-summary';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
-import type * as z from 'zod';
-import type { addAssetFormSchema } from '@/components/add-asset-dialog';
+import type { AddAssetData } from '@/components/add-asset-dialog';
 import { getAssets, addAsset, updateAsset, deleteAsset } from '@/services/asset.service';
 
 export default function Home() {
@@ -42,24 +42,23 @@ export default function Home() {
     fetchAssets();
   }, []);
 
-  const handleAddAsset = async (data: z.infer<typeof addAssetFormSchema>) => {
-    if (data.transactionType === 'Vendita') {
-      toast({ title: "Funzione non disponibile", description: "La logica di vendita non è ancora implementata." });
-      return;
-    }
-
+  const handleAddAsset = async (data: AddAssetData) => {
     const initialValue = data.quantity * data.purchasePrice;
     
+    // We need the current price to set the initial currentValue
+    const quote = await getQuote(data.ticker);
+    const currentValue = quote ? quote.price * data.quantity : initialValue;
+    
     const newAssetData = {
-      name: data.security,
-      type: 'Azione' as const, // Hardcoded per ora
-      ticker: data.security,
+      name: data.name,
+      type: data.type,
+      ticker: data.ticker,
       quantity: data.quantity,
       purchasePrice: data.purchasePrice,
       purchaseDate: data.transactionDate.toISOString(),
       currency: data.currency,
       initialValue: initialValue,
-      currentValue: initialValue,
+      currentValue: currentValue,
     };
 
     try {
@@ -83,9 +82,21 @@ export default function Home() {
         const dataWithRecalculatedValues: Partial<Omit<Asset, 'id'>> = { ...updatedData };
 
         if (quantity !== undefined && purchasePrice !== undefined) {
-            const newInitialValue = quantity * purchasePrice;
-            dataWithRecalculatedValues.initialValue = newInitialValue;
-            dataWithRecalculatedValues.currentValue = newInitialValue;
+            const initialValue = quantity * purchasePrice;
+            dataWithRecalculatedValues.initialValue = initialValue;
+
+            // If we have a ticker, let's also update the current value based on the new quantity
+            if(assetToUpdate.ticker) {
+              const quote = await getQuote(assetToUpdate.ticker);
+              if (quote?.price) {
+                dataWithRecalculatedValues.currentValue = quote.price * quantity;
+              } else {
+                // Fallback to initial value if quote fails
+                dataWithRecalculatedValues.currentValue = initialValue;
+              }
+            } else {
+               dataWithRecalculatedValues.currentValue = initialValue;
+            }
         }
         
         await updateAsset(id, dataWithRecalculatedValues);
@@ -99,18 +110,26 @@ export default function Home() {
   
   const handleRefreshAsset = async (id: string) => {
     const asset = assets.find(a => a.id === id);
-    if (asset && (asset.type === 'Azione' || asset.type === 'ETF')) {
-        const changePercent = (Math.random() - 0.5) * 0.1;
-        const newCurrentValue = asset.currentValue * (1 + changePercent);
-        
-        try {
-            await updateAsset(id, { currentValue: newCurrentValue });
-            toast({ title: "Aggiornato", description: "Valore dell'asset aggiornato (simulato)." });
-            fetchAssets();
-        } catch (error) {
-            console.error("Errore nell'aggiornamento dell'asset:", error);
-            toast({ title: "Errore", description: "Impossibile aggiornare il valore dell'asset.", variant: "destructive" });
+    if (!asset || !asset.ticker) {
+      toast({ title: "Errore", description: "Ticker non trovato per questo asset.", variant: "destructive" });
+      return;
+    }
+
+    if (asset.type === 'Azione' || asset.type === 'ETF') {
+      try {
+        const quote = await getQuote(asset.ticker);
+        if (quote?.price && asset.quantity) {
+          const newCurrentValue = quote.price * asset.quantity;
+          await updateAsset(id, { currentValue: newCurrentValue });
+          toast({ title: "Aggiornato", description: `Valore di ${asset.name} aggiornato da Yahoo Finance.` });
+          fetchAssets();
+        } else {
+          toast({ title: "Errore", description: `Impossibile recuperare la quotazione per ${asset.ticker}.`, variant: "destructive" });
         }
+      } catch (error) {
+        console.error("Errore nell'aggiornamento dell'asset:", error);
+        toast({ title: "Errore", description: "Impossibile aggiornare il valore dell'asset.", variant: "destructive" });
+      }
     }
   };
 

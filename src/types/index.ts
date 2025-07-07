@@ -1,6 +1,6 @@
 
 export type AssetType = 'Azione' | 'ETF' | 'Conto Bancario';
-export type Currency = 'EUR' | 'USD';
+export type Currency = string;
 
 export const assetTypes: AssetType[] = ['Azione', 'ETF', 'Conto Bancario'];
 
