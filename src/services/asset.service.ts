@@ -16,6 +16,9 @@ import {
 
 const fromFirestore = (docSnap: DocumentSnapshot | QueryDocumentSnapshot): Asset => {
   const data = docSnap.data();
+  if (!data) {
+    throw new Error(`Documento con id ${docSnap.id} non contiene dati.`);
+  }
   const asset: Asset = {
     id: docSnap.id,
     name: data.name,
