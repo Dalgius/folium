@@ -1,11 +1,10 @@
 # Portfolio Pulse
 
-This is a Next.js application built with ShadCN UI, Tailwind CSS, and TypeScript. It helps you track your assets and watch your portfolio grow.
+A Next.js application to track your assets and watch your portfolio grow.
 
 ## Getting Started
 
 First, install the dependencies:
-
 ```bash
 npm install
 ```
@@ -16,7 +15,7 @@ Then, run the development server:
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 with your browser to see the result.
 
 ## Deploy on Vercel
 
