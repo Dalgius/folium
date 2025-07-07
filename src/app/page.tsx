@@ -9,7 +9,6 @@ import { AddAssetDialog } from '@/components/add-asset-dialog';
 import { AssetCard } from '@/components/asset-card';
 import { PortfolioSummary } from '@/components/portfolio-summary';
 import { Button } from '@/components/ui/button';
-import { InvestmentAdvisor } from '@/components/investment-advisor';
 
 export default function Home() {
   const [assets, setAssets] = useState<Asset[]>([
@@ -56,10 +55,6 @@ export default function Home() {
           </div>
           <PortfolioSummary assets={assets} />
         </header>
-
-        <div className="mb-8">
-          <InvestmentAdvisor assets={assets} />
-        </div>
 
         {assets.length > 0 ? (
           <>
