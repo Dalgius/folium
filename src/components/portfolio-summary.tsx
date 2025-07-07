@@ -24,17 +24,17 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg font-medium text-muted-foreground">Portfolio Overview</CardTitle>
+        <CardTitle className="text-lg font-medium text-muted-foreground">Riepilogo Portafoglio</CardTitle>
       </CardHeader>
       <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         <div>
-            <p className="text-sm text-muted-foreground">Total Value</p>
+            <p className="text-sm text-muted-foreground">Valore Totale</p>
             <p className="text-4xl font-bold text-primary font-headline">
               {formatCurrency(totalCurrentValue)}
             </p>
         </div>
         <div className="flex flex-col justify-center">
-            <p className="text-sm text-muted-foreground">Overall Performance</p>
+            <p className="text-sm text-muted-foreground">Performance Complessiva</p>
             <div className="flex items-center gap-2">
                 <PerformanceIcon className={cn(
                     "h-6 w-6",

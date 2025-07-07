@@ -1,6 +1,6 @@
 "use client";
 
-import { type ComponentType } from "react";
+import React, { type ComponentType } from "react";
 import { type LucideProps, TrendingUp, Briefcase, Landmark, ArrowUp, ArrowDown, Minus } from "lucide-react";
 import { type AssetType } from "@/types";
 import { cn } from "@/lib/utils";
@@ -10,9 +10,9 @@ type AssetIconMap = {
 };
 
 const assetIconMap: AssetIconMap = {
-  Stock: TrendingUp,
-  ETF: Briefcase,
-  'Bank Account': Landmark,
+  'Azione': TrendingUp,
+  'ETF': Briefcase,
+  'Conto Bancario': Landmark,
 };
 
 interface AssetIconProps extends LucideProps {

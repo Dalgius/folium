@@ -22,17 +22,16 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { UpdateAssetDialog } from "./update-asset-dialog";
 import { AssetIcon, PerformanceIndicator } from "./asset-icons";
-import { PenLine, Trash2 } from "lucide-react";
+import { RefreshCw, Trash2 } from "lucide-react";
 
 interface AssetCardProps {
   asset: Asset;
-  onUpdate: (id: string, newCurrentValue: number) => void;
+  onRefresh: (id: string) => void;
   onDelete: (id: string) => void;
 }
 
-export function AssetCard({ asset, onUpdate, onDelete }: AssetCardProps) {
+export function AssetCard({ asset, onRefresh, onDelete }: AssetCardProps) {
   const performance = asset.initialValue !== 0 
     ? ((asset.currentValue - asset.initialValue) / asset.initialValue) * 100 
     : 0;
@@ -46,12 +45,12 @@ export function AssetCard({ asset, onUpdate, onDelete }: AssetCardProps) {
         </div>
         <div className="flex-1">
           <CardTitle className="text-xl font-headline">{asset.name}</CardTitle>
-          <CardDescription>{asset.type}</CardDescription>
+          <CardDescription>{asset.type} {asset.ticker && `(${asset.ticker})`}</CardDescription>
         </div>
       </CardHeader>
       <CardContent className="flex-grow space-y-4">
         <div>
-          <p className="text-sm text-muted-foreground">Current Value</p>
+          <p className="text-sm text-muted-foreground">Valore Corrente</p>
           <p className="text-3xl font-bold text-foreground">
             {formatCurrency(asset.currentValue)}
           </p>
@@ -75,30 +74,30 @@ export function AssetCard({ asset, onUpdate, onDelete }: AssetCardProps) {
         </div>
       </CardContent>
       <CardFooter className="flex justify-end gap-2">
-        <UpdateAssetDialog asset={asset} onAssetUpdate={onUpdate}>
-           <Button variant="outline" size="sm">
-            <PenLine className="mr-2 h-4 w-4" />
-            Update
+        {(asset.type === 'Azione' || asset.type === 'ETF') && (
+          <Button variant="outline" size="sm" onClick={() => onRefresh(asset.id)}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Aggiorna
           </Button>
-        </UpdateAssetDialog>
+        )}
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button variant="destructive" size="sm">
               <Trash2 className="mr-2 h-4 w-4" />
-              Delete
+              Elimina
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogTitle>Sei sicuro?</AlertDialogTitle>
               <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete your asset &quot;{asset.name}&quot; from your portfolio.
+                Questa azione non può essere annullata. Questo eliminerà permanentemente il tuo asset &quot;{asset.name}&quot; dal tuo portafoglio.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel>Annulla</AlertDialogCancel>
               <AlertDialogAction onClick={() => onDelete(asset.id)}>
-                Continue
+                Continua
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

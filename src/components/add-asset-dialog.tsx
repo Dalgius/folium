@@ -35,19 +35,20 @@ import { useState, type ReactNode } from "react";
 
 const formSchema = z.object({
   name: z.string().min(2, {
-    message: "Asset name must be at least 2 characters.",
+    message: "Il nome dell'asset deve contenere almeno 2 caratteri.",
   }),
   type: z.enum(assetTypes, {
-    errorMap: () => ({ message: "Please select a valid asset type." }),
+    errorMap: () => ({ message: "Seleziona un tipo di asset valido." }),
   }),
   value: z.coerce.number().positive({
-    message: "Initial value must be a positive number.",
+    message: "Il valore iniziale deve essere un numero positivo.",
   }),
+  ticker: z.string().optional(),
 });
 
 interface AddAssetDialogProps {
   children: ReactNode;
-  onAssetAdd: (name: string, type: AssetType, value: number) => void;
+  onAssetAdd: (name: string, type: AssetType, value: number, ticker?: string) => void;
 }
 
 export function AddAssetDialog({ children, onAssetAdd }: AddAssetDialogProps) {
@@ -58,11 +59,14 @@ export function AddAssetDialog({ children, onAssetAdd }: AddAssetDialogProps) {
     defaultValues: {
       name: "",
       value: 0,
+      ticker: "",
     },
   });
 
+  const assetType = form.watch("type");
+
   function onSubmit(values: z.infer<typeof formSchema>) {
-    onAssetAdd(values.name, values.type, values.value);
+    onAssetAdd(values.name, values.type, values.value, values.ticker);
     form.reset();
     setIsOpen(false);
   }
@@ -72,9 +76,9 @@ export function AddAssetDialog({ children, onAssetAdd }: AddAssetDialogProps) {
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add New Asset</DialogTitle>
+          <DialogTitle>Aggiungi Nuovo Asset</DialogTitle>
           <DialogDescription>
-            Enter the details of your new asset to add it to your portfolio.
+            Inserisci i dettagli del tuo nuovo asset per aggiungerlo al portafoglio.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -84,9 +88,9 @@ export function AddAssetDialog({ children, onAssetAdd }: AddAssetDialogProps) {
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Asset Name</FormLabel>
+                  <FormLabel>Nome Asset</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Apple Inc." {...field} />
+                    <Input placeholder="es. Apple Inc." {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -97,11 +101,11 @@ export function AddAssetDialog({ children, onAssetAdd }: AddAssetDialogProps) {
               name="type"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Asset Type</FormLabel>
+                  <FormLabel>Tipo di Asset</FormLabel>
                    <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select an asset type" />
+                        <SelectValue placeholder="Seleziona un tipo di asset" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -114,15 +118,30 @@ export function AddAssetDialog({ children, onAssetAdd }: AddAssetDialogProps) {
                 </FormItem>
               )}
             />
+            {(assetType === 'Azione' || assetType === 'ETF') && (
+              <FormField
+                control={form.control}
+                name="ticker"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Simbolo Ticker</FormLabel>
+                    <FormControl>
+                      <Input placeholder="es. AAPL" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
              <FormField
               control={form.control}
               name="value"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Initial Value</FormLabel>
+                  <FormLabel>Valore Iniziale</FormLabel>
                   <FormControl>
                     <div className="relative">
-                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">$</span>
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">€</span>
                       <Input type="number" placeholder="1000.00" className="pl-7" {...field} />
                     </div>
                   </FormControl>
@@ -131,7 +150,7 @@ export function AddAssetDialog({ children, onAssetAdd }: AddAssetDialogProps) {
               )}
             />
             <DialogFooter>
-              <Button type="submit">Add Asset</Button>
+              <Button type="submit">Aggiungi Asset</Button>
             </DialogFooter>
           </form>
         </Form>
