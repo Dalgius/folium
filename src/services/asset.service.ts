@@ -10,9 +10,11 @@ import {
   Timestamp,
   query,
   orderBy,
+  DocumentSnapshot,
+  QueryDocumentSnapshot,
 } from 'firebase/firestore';
 
-const fromFirestore = (docSnap: any): Asset => {
+const fromFirestore = (docSnap: DocumentSnapshot | QueryDocumentSnapshot): Asset => {
   const data = docSnap.data();
   const asset: Asset = {
     id: docSnap.id,
