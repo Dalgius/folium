@@ -1,11 +1,12 @@
 "use client";
 
+import { type ComponentType } from "react";
 import { type LucideProps, TrendingUp, Briefcase, Landmark, ArrowUp, ArrowDown, Minus } from "lucide-react";
 import { type AssetType } from "@/types";
 import { cn } from "@/lib/utils";
 
 type AssetIconMap = {
-  [key in AssetType]: React.ComponentType<LucideProps>;
+  [key in AssetType]: ComponentType<LucideProps>;
 };
 
 const assetIconMap: AssetIconMap = {
