@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Asset } from "@/types";
@@ -23,15 +24,19 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { AssetIcon, PerformanceIndicator } from "./asset-icons";
-import { RefreshCw, Trash2 } from "lucide-react";
+import { RefreshCw, Trash2, Pencil } from "lucide-react";
+import { UpdateAssetDialog } from "./update-asset-dialog";
+import { format, parseISO } from 'date-fns';
+import { it } from 'date-fns/locale';
 
 interface AssetCardProps {
   asset: Asset;
   onRefresh: (id: string) => void;
   onDelete: (id: string) => void;
+  onUpdate: (id: string, updatedData: Partial<Omit<Asset, 'id' | 'type' | 'name' | 'ticker'>>) => void;
 }
 
-export function AssetCard({ asset, onRefresh, onDelete }: AssetCardProps) {
+export function AssetCard({ asset, onRefresh, onDelete, onUpdate }: AssetCardProps) {
   const performance = asset.initialValue !== 0 
     ? ((asset.currentValue - asset.initialValue) / asset.initialValue) * 100 
     : 0;
@@ -55,6 +60,13 @@ export function AssetCard({ asset, onRefresh, onDelete }: AssetCardProps) {
             {formatCurrency(asset.currentValue)}
           </p>
         </div>
+         {asset.quantity && asset.purchasePrice && (
+            <div className="text-sm text-muted-foreground">
+                <p>Quantità: {asset.quantity}</p>
+                <p>P. Acq.: {formatCurrency(asset.purchasePrice)}</p>
+                {asset.purchaseDate && <p>Data Acq.: {format(parseISO(asset.purchaseDate), 'dd MMM yyyy', { locale: it })}</p>}
+            </div>
+        )}
         <div className="flex items-center justify-between rounded-lg bg-muted p-3">
           <div className="text-sm font-medium">Performance</div>
           <div className="flex items-center gap-2">
@@ -79,6 +91,14 @@ export function AssetCard({ asset, onRefresh, onDelete }: AssetCardProps) {
             <RefreshCw className="mr-2 h-4 w-4" />
             Aggiorna
           </Button>
+        )}
+        {asset.type !== 'Conto Bancario' && (
+            <UpdateAssetDialog asset={asset} onAssetUpdate={onUpdate}>
+                <Button variant="outline" size="sm">
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Modifica
+                </Button>
+            </UpdateAssetDialog>
         )}
         <AlertDialog>
           <AlertDialogTrigger asChild>

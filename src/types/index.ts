@@ -9,4 +9,7 @@ export interface Asset {
   type: AssetType;
   initialValue: number;
   currentValue: number;
+  quantity?: number;
+  purchasePrice?: number;
+  purchaseDate?: string;
 }

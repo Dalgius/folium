@@ -9,32 +9,67 @@ import { AddAssetDialog } from '@/components/add-asset-dialog';
 import { AssetCard } from '@/components/asset-card';
 import { PortfolioSummary } from '@/components/portfolio-summary';
 import { Button } from '@/components/ui/button';
+import type * as z from 'zod';
+import type { addAssetFormSchema } from '@/components/add-asset-dialog';
 
 export default function Home() {
   const [assets, setAssets] = useState<Asset[]>([
-    { id: '1', name: 'Apple Inc.', ticker: 'AAPL', type: 'Azione', initialValue: 15000, currentValue: 17500 },
-    { id: '2', name: 'Vanguard S&P 500', ticker: 'VOO', type: 'ETF', initialValue: 25000, currentValue: 26100 },
+    { id: '1', name: 'Apple Inc.', ticker: 'AAPL', type: 'Azione', initialValue: 15000, currentValue: 17500, quantity: 10, purchasePrice: 1500, purchaseDate: new Date('2023-01-10').toISOString() },
+    { id: '2', name: 'Vanguard S&P 500', ticker: 'VOO', type: 'ETF', initialValue: 25000, currentValue: 26100, quantity: 50, purchasePrice: 500, purchaseDate: new Date('2023-02-20').toISOString() },
     { id: '3', name: 'Conto Deposito', type: 'Conto Bancario', initialValue: 50000, currentValue: 50250 },
-    { id: '4', name: 'Alphabet Inc.', ticker: 'GOOGL', type: 'Azione', initialValue: 10000, currentValue: 9500 },
+    { id: '4', name: 'Alphabet Inc.', ticker: 'GOOGL', type: 'Azione', initialValue: 10000, currentValue: 9500, quantity: 10, purchasePrice: 1000, purchaseDate: new Date('2023-03-05').toISOString() },
   ]);
 
-  const handleAddAsset = (name: string, type: AssetType, value: number, ticker?: string) => {
+  const handleAddAsset = (data: z.infer<typeof addAssetFormSchema>) => {
+    // La logica di vendita può essere implementata in futuro
+    if (data.transactionType === 'Vendita') {
+      console.log("La vendita non è ancora implementata.");
+      return;
+    }
+
+    const initialValue = data.quantity * data.purchasePrice;
     const newAsset: Asset = {
       id: Date.now().toString(),
-      name,
-      type,
-      initialValue: value,
-      currentValue: value,
-      ticker: type === 'Azione' || type === 'ETF' ? ticker : undefined,
+      name: data.security,
+      type: 'Azione', // Hardcoded per ora
+      ticker: data.security,
+      quantity: data.quantity,
+      purchasePrice: data.purchasePrice,
+      purchaseDate: data.transactionDate.toISOString(),
+      initialValue: initialValue,
+      currentValue: initialValue,
     };
     setAssets(prevAssets => [...prevAssets, newAsset]);
+  };
+
+  const handleUpdateAsset = (id: string, updatedData: Partial<Omit<Asset, 'id' | 'type' | 'name' | 'ticker'>>) => {
+    setAssets(prevAssets =>
+      prevAssets.map(asset => {
+        if (asset.id === id) {
+          const newAssetData = { ...asset, ...updatedData };
+
+          const quantity = updatedData.quantity ?? asset.quantity;
+          const purchasePrice = updatedData.purchasePrice ?? asset.purchasePrice;
+
+          if (quantity !== undefined && purchasePrice !== undefined) {
+            const newInitialValue = quantity * purchasePrice;
+            newAssetData.initialValue = newInitialValue;
+            // Quando si modificano i dati di base, si potrebbe voler ricalcolare il valore corrente
+            // Per semplicità, lo reimpostiamo al nuovo valore iniziale.
+            newAssetData.currentValue = newInitialValue;
+          }
+          
+          return newAssetData;
+        }
+        return asset;
+      })
+    );
   };
 
   const handleRefreshAsset = (id: string) => {
     setAssets(prevAssets =>
       prevAssets.map(asset => {
         if (asset.id === id && (asset.type === 'Azione' || asset.type === 'ETF')) {
-          // Simula una variazione di prezzo (+/- 5%)
           const changePercent = (Math.random() - 0.5) * 0.1;
           const newCurrentValue = asset.currentValue * (1 + changePercent);
           return { ...asset, currentValue: newCurrentValue };
@@ -73,6 +108,7 @@ export default function Home() {
                   asset={asset}
                   onRefresh={handleRefreshAsset}
                   onDelete={handleDeleteAsset}
+                  onUpdate={handleUpdateAsset}
                 />
               ))}
             </div>
