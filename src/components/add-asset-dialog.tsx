@@ -36,7 +36,6 @@ import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
-  PopoverTrigger,
   PopoverAnchor,
 } from "@/components/ui/popover";
 import {
@@ -164,7 +163,7 @@ export function AddAssetDialog({ children, onAssetAdd }: AddAssetDialogProps) {
                             className="pl-9"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            onFocus={() => searchTerm.length > 1 && setSearchResults.length > 0 && setIsSearchOpen(true)}
+                            onFocus={() => searchTerm.length > 1 && searchResults.length > 0 && setIsSearchOpen(true)}
                           />
                        </FormControl>
                       {isSearching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin" />}
