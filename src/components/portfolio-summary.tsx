@@ -349,35 +349,33 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                 </p>
             </div>
              {pieData.length > 0 ? (
-                <div className="w-full aspect-square">
-                    <ChartContainer config={pieChartConfig}>
-                        <PieChart>
-                            <ChartTooltip
-                                cursor={false}
-                                content={<ChartTooltipContent
-                                    hideLabel
-                                    formatter={(value, name, props) => (
-                                        <div className="flex flex-col items-start">
-                                            <span>{props.payload.label}</span>
-                                            <span className="font-bold">{formatCurrency(value as number, 'EUR')}</span>
-                                        </div>
-                                    )}
-                                />}
-                            />
-                            <Pie
-                                data={pieData}
-                                dataKey="value"
-                                nameKey="name"
-                                cx="50%"
-                                cy="50%"
-                                innerRadius="60%"
-                                outerRadius="95%"
-                                paddingAngle={2}
-                                label={false}
-                            />
-                        </PieChart>
-                    </ChartContainer>
-                </div>
+                <ChartContainer config={pieChartConfig} className="h-[200px] w-full">
+                    <PieChart>
+                        <ChartTooltip
+                            cursor={false}
+                            content={<ChartTooltipContent
+                                hideLabel
+                                formatter={(value, name, props) => (
+                                    <div className="flex flex-col items-start">
+                                        <span>{props.payload.label}</span>
+                                        <span className="font-bold">{formatCurrency(value as number, 'EUR')}</span>
+                                    </div>
+                                )}
+                            />}
+                        />
+                        <Pie
+                            data={pieData}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius="60%"
+                            outerRadius="95%"
+                            paddingAngle={2}
+                            label={false}
+                        />
+                    </PieChart>
+                </ChartContainer>
              ) : (
                 <div className="flex flex-col items-center justify-center text-center">
                     <Wallet className="h-10 w-10 text-muted-foreground" />
