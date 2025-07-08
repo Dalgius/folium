@@ -23,7 +23,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { AssetIcon, PerformanceIndicator } from "./asset-icons";
-import { Trash2, Pencil, ChevronDown } from "lucide-react";
+import { Trash2, Pencil } from "lucide-react";
 import { UpdateAssetDialog } from "./update-asset-dialog";
 import { UpdateBankAccountDialog } from "./update-bank-account-dialog";
 import { Separator } from "@/components/ui/separator";
@@ -93,7 +93,6 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
                       {(absoluteGain >= 0 ? '+' : '') + formatCurrency(absoluteGain, asset.currency)}
                     </span>
                 </div>
-                <ChevronDown className={cn("h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200", isExpanded && "rotate-180")} />
             </div>
         </CardHeader>
         <CardContent className="p-4 pt-0">
