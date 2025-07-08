@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Pie, PieChart } from "recharts";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { getExchangeRate, getHistoricalData, HistoricalDataPoint } from "@/services/finance.service";
 import { TrendingUp, TrendingDown, Minus, Wallet } from "lucide-react";
 import { format, subMonths, subYears, startOfYear, parseISO, subDays } from 'date-fns';
@@ -28,9 +28,9 @@ const timePeriods: { label: string; value: TimePeriod }[] = [
     { label: 'Max', value: 'MAX' },
 ];
 
-const assetTypeToKey = (type: AssetType): string => {
-    return type.toLowerCase().replace(/\s+/g, '-');
-}
+const sanitizeNameForChart = (name: string): string => {
+    return name.toLowerCase().replace(/\s+/g, '-');
+};
 
 const areaChartConfig = {
   value: {
@@ -39,17 +39,19 @@ const areaChartConfig = {
   },
 } satisfies ChartConfig;
 
-const pieChartConfig = assetTypes.reduce((acc, type, index) => {
-    const key = assetTypeToKey(type);
+const pieChartConfig = assetTypes.reduce((acc, type) => {
+    const key = sanitizeNameForChart(type);
+    const chartIndex = (assetTypes.indexOf(type) % 5) + 1;
     acc[key] = {
         label: type,
-        color: `hsl(var(--chart-${index + 2}))`
+        color: `hsl(var(--chart-${chartIndex}))`
     };
     return acc;
 }, {} as ChartConfig);
 
+
 export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
-  const [areaChartData, setAreaChartData] = useState<any[]>([]);
+  const [historicalChartData, setHistoricalChartData] = useState<any[]>([]);
   const [pieData, setPieData] = useState<any[]>([]);
   const [securitiesSummary, setSecuritiesSummary] = useState<{ totalInitialValue: number; totalCurrentValue: number; } | null>(null);
   const [totalPatrimony, setTotalPatrimony] = useState<number>(0);
@@ -59,12 +61,14 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
   const [hoverValue, setHoverValue] = useState<number | null>(null);
   const [hoverDate, setHoverDate] = useState<string | null>(null);
 
+  const securitiesAssets = useMemo(() => assets.filter(a => a.type === 'Azione' || a.type === 'ETF'), [assets]);
+
   useEffect(() => {
     const calculatePortfolioSummary = async () => {
       setIsLoading(true);
       
       if (assets.length === 0) {
-        setAreaChartData([]);
+        setHistoricalChartData([]);
         setPieData([]);
         setSecuritiesSummary({ totalInitialValue: 0, totalCurrentValue: 0 });
         setTotalPatrimony(0);
@@ -72,9 +76,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
         return;
       }
       
-      const securitiesAssets = assets.filter(a => a.type === 'Azione' || a.type === 'ETF');
       const uniqueCurrencies = [...new Set(assets.map(a => a.currency))];
-
       const exchangeRateResults = await Promise.all(
         uniqueCurrencies.map(currency => currency === 'EUR' 
           ? Promise.resolve({ currency, rate: 1 }) 
@@ -86,7 +88,6 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
         return acc;
       }, {} as Record<string, number>);
 
-      // --- Calculate Total Patrimony and Pie Chart Data ---
       const totalValueEur = assets.reduce((sum, asset) => {
           const rate = rates[asset.currency] || 1;
           return sum + (asset.currentValue * rate);
@@ -96,13 +97,13 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
       const allocation = assets.reduce((acc, asset) => {
         const rate = rates[asset.currency] || 1;
         const valueInEur = asset.currentValue * rate;
-        const key = assetTypeToKey(asset.type);
+        const key = sanitizeNameForChart(asset.type);
         acc[key] = (acc[key] || 0) + valueInEur;
         return acc;
       }, {} as Record<string, number>);
 
       const finalPieData = Object.entries(allocation).map(([key, value]) => {
-        const type = assetTypes.find(t => assetTypeToKey(t) === key)!;
+        const type = assetTypes.find(t => sanitizeNameForChart(t) === key)!;
         return {
           name: key,
           label: type,
@@ -112,7 +113,6 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
       }).filter(d => d.value > 0);
       setPieData(finalPieData);
 
-      // --- Calculate Securities Historical Performance ---
       if (securitiesAssets.length > 0) {
         const today = new Date();
         let startDate: Date;
@@ -141,7 +141,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
 
         const dateSet = new Set<string>();
         Object.values(priceHistoryByTicker).forEach(history => history.forEach(p => dateSet.add(format(p.date, 'yyyy-MM-dd'))));
-        for (let d = new Date(startDate); d <= today; d = subDays(d, -1)) {
+        for (let d = new Date(startDate); d <= today; d.setDate(d.getDate() + 1)) {
           if (d >= startDate) dateSet.add(format(d, 'yyyy-MM-dd'));
         }
         
@@ -167,7 +167,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
             return { date: dateStr, value: parseFloat(dailyValueEUR.toFixed(2)) };
         }).filter(d => d.value > 0);
 
-        setAreaChartData(finalAreaChartData);
+        setHistoricalChartData(finalAreaChartData);
 
         if (finalAreaChartData.length > 0) {
           const firstValue = finalAreaChartData[0].value;
@@ -177,14 +177,14 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
            const securitiesCurrentValue = securitiesAssets.reduce((sum, asset) => sum + (asset.currentValue * (rates[asset.currency] || 1)), 0);
            setSecuritiesSummary({ totalInitialValue: securitiesCurrentValue, totalCurrentValue: securitiesCurrentValue });
            if (securitiesCurrentValue > 0) {
-              setAreaChartData([
+              setHistoricalChartData([
                   { date: format(subDays(today,1), 'yyyy-MM-dd'), value: securitiesCurrentValue },
                   { date: format(today, 'yyyy-MM-dd'), value: securitiesCurrentValue }
               ]);
            }
         }
       } else {
-        setAreaChartData([]);
+        setHistoricalChartData([]);
         setSecuritiesSummary({ totalInitialValue: 0, totalCurrentValue: 0 });
       }
 
@@ -192,7 +192,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
     };
 
     calculatePortfolioSummary();
-  }, [assets, timePeriod]);
+  }, [assets, timePeriod, securitiesAssets]);
   
   const handleMouseMove = (e: any) => {
     if (e.activePayload && e.activePayload.length > 0) {
@@ -204,7 +204,6 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
       setHoverValue(null);
       setHoverDate(null);
   };
-
 
   const securitiesDisplayValue = hoverValue ?? securitiesSummary?.totalCurrentValue ?? 0;
   const securitiesInitialValue = securitiesSummary?.totalInitialValue ?? 0;
@@ -257,7 +256,6 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
         <CardDescription>Una visione d'insieme del tuo patrimonio e delle performance dei tuoi investimenti.</CardDescription>
       </CardHeader>
       <CardContent className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-        {/* Left Column: Securities Performance */}
         <div className="flex flex-col gap-4 lg:col-span-3">
             <h3 className="text-lg font-semibold font-headline">Andamento Titoli (Azioni & ETF)</h3>
             <div>
@@ -284,7 +282,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                 <>
                     <ChartContainer config={areaChartConfig} className="h-[150px] w-full">
                         <AreaChart 
-                        data={areaChartData} 
+                        data={historicalChartData} 
                         margin={{ top: 5, right: 10, left: 10, bottom: 0 }}
                         onMouseMove={handleMouseMove}
                         onMouseLeave={handleMouseLeave}
@@ -340,7 +338,6 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
             )}
         </div>
 
-        {/* Right Column: Total Patrimony */}
         <div className="flex flex-col gap-4 lg:col-span-2 lg:border-l lg:pl-8">
             <h3 className="text-lg font-semibold font-headline">Patrimonio Complessivo</h3>
             <div>
@@ -349,9 +346,9 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                     {formatCurrency(totalPatrimony, 'EUR')}
                 </p>
             </div>
-             <div className="flex flex-col items-center">
+             <div className="mt-2 flex flex-col items-center">
                  {pieData.length > 0 ? (
-                    <ChartContainer config={pieChartConfig} className="h-[160px] w-full">
+                    <ChartContainer config={pieChartConfig} className="h-[180px] w-full">
                         <PieChart>
                             <ChartTooltip
                                 cursor={false}
