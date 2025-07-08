@@ -1,5 +1,5 @@
 
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { Asset } from '@/types';
 import {
   collection,
@@ -11,6 +11,7 @@ import {
   Timestamp,
   query,
   orderBy,
+  where,
   DocumentSnapshot,
   QueryDocumentSnapshot,
 } from 'firebase/firestore';
@@ -36,8 +37,13 @@ const fromFirestore = (docSnap: DocumentSnapshot | QueryDocumentSnapshot): Asset
 };
 
 export const getAssets = async (): Promise<Asset[]> => {
+  const user = auth.currentUser;
+  if (!user) {
+    console.log("Nessun utente loggato per getAssets, ritorno array vuoto.");
+    return [];
+  }
   const assetsCollection = collection(db, 'assets');
-  const q = query(assetsCollection, orderBy("purchaseDate", "desc"));
+  const q = query(assetsCollection, where("userId", "==", user.uid), orderBy("purchaseDate", "desc"));
   const assetSnapshot = await getDocs(q);
   const assetList = assetSnapshot.docs.map(fromFirestore);
   return assetList;
@@ -46,13 +52,17 @@ export const getAssets = async (): Promise<Asset[]> => {
 export type AddableAsset = Omit<Asset, 'id'>;
 
 export const addAsset = async (assetData: AddableAsset): Promise<Asset> => {
-    // Make a copy to avoid mutating the original object
-    const dataToAdd: { [key: string]: any } = { ...assetData };
+    const user = auth.currentUser;
+    if (!user) {
+        throw new Error("Devi essere loggato per aggiungere un asset.");
+    }
+    
+    const dataToAdd: { [key: string]: any } = { 
+        ...assetData,
+        userId: user.uid
+    };
 
-    // Ensure purchaseDate is a Date object for Firestore
     dataToAdd.purchaseDate = assetData.purchaseDate ? new Date(assetData.purchaseDate) : new Date();
-
-    // Remove undefined fields to keep Firestore data clean
     Object.keys(dataToAdd).forEach(key => dataToAdd[key] === undefined && delete dataToAdd[key]);
 
     const assetCollection = collection(db, 'assets');
@@ -68,6 +78,7 @@ export const updateAsset = async (id: string, updatedData: Partial<AddableAsset>
   if (updatedData.purchaseDate) {
     dataToUpdate.purchaseDate = new Date(updatedData.purchaseDate);
   }
+  delete dataToUpdate.userId;
 
   await updateDoc(assetDoc, dataToUpdate);
 };

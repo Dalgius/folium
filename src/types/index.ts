@@ -15,4 +15,5 @@ export interface Asset {
   quantity?: number;
   purchasePrice?: number;
   purchaseDate?: string;
+  userId?: string;
 }

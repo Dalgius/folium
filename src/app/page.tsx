@@ -3,9 +3,12 @@
 
 import { useState, useEffect } from 'react';
 import { Asset, AssetType } from '@/types';
-import { PlusCircle, BarChart2, SearchX, RefreshCw } from 'lucide-react';
+import { PlusCircle, BarChart2, SearchX, RefreshCw, LogOut } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { getQuote } from '@/services/finance.service';
+import { signOut } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { useAuth } from '@/hooks/use-auth';
 
 import { AddAssetDialog } from '@/components/add-asset-dialog';
 import { AssetCard } from '@/components/asset-card';
@@ -16,6 +19,7 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { getAssets, addAsset, updateAsset, deleteAsset, type AddableAsset } from '@/services/asset.service';
 
 export default function Home() {
+  const { user } = useAuth();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<AssetType | 'Tutti'>('Tutti');
@@ -39,8 +43,14 @@ export default function Home() {
   };
 
   useEffect(() => {
-    fetchAssets();
-  }, []);
+    if (user) {
+      fetchAssets();
+    }
+  }, [user]);
+
+  const handleLogout = async () => {
+    await signOut(auth);
+  };
 
   const handleAddAsset = async (asset: AddableAsset) => {
     try {
@@ -158,9 +168,12 @@ export default function Home() {
       <main className="container mx-auto p-4 sm:p-6 lg:p-8">
         <header className="mb-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-            <h1 className="text-3xl font-bold text-primary font-headline tracking-tight">Portfolio Pulse</h1>
+             <div>
+                <h1 className="text-3xl font-bold text-primary font-headline tracking-tight">Portfolio Pulse</h1>
+                {user && <p className="text-sm text-muted-foreground">Bentornato, {user.email}</p>}
+            </div>
             <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={handleRefreshAllAssets} disabled={isLoading}>
+                <Button variant="outline" onClick={handleRefreshAllAssets} disabled={isLoading || assets.length === 0}>
                     <RefreshCw className="mr-2 h-4 w-4" /> Aggiorna Tutto
                 </Button>
                 <AddAssetDialog onAssetAdd={handleAddAsset}>
@@ -168,6 +181,11 @@ export default function Home() {
                     <PlusCircle className="mr-2 h-4 w-4" /> Aggiungi Asset
                 </Button>
                 </AddAssetDialog>
+                {user && (
+                    <Button variant="ghost" size="icon" onClick={handleLogout} title="Esci">
+                        <LogOut className="h-5 w-5" />
+                    </Button>
+                )}
             </div>
           </div>
           <PortfolioSummary assets={filteredAssets} />
