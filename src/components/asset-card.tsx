@@ -35,21 +35,27 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
   const performance = asset.initialValue !== 0 
     ? ((asset.currentValue - asset.initialValue) / asset.initialValue) * 100 
     : 0;
+  const absoluteGain = asset.currentValue - asset.initialValue;
+  const performanceColor = cn(
+    performance > 0 ? "text-green-600" : performance < 0 ? "text-red-600" : "text-muted-foreground"
+  );
 
   return (
     <Card className="flex flex-col transition-all hover:shadow-lg">
-      <CardHeader className="flex-row items-center justify-between gap-4 space-y-0 p-4 pb-2">
+      <CardHeader className="flex-row items-start justify-between gap-4 space-y-0 p-4 pb-2">
         <div className="flex items-center gap-3">
           <AssetIcon type={asset.type} className="h-7 w-7 text-primary" />
           <CardTitle className="text-lg font-headline">{asset.name}</CardTitle>
         </div>
-        <div className="flex items-center gap-1.5 text-right">
-            <PerformanceIndicator performance={performance} className="h-4 w-4" />
-            <span className={cn(
-                "font-semibold",
-                performance > 0 ? "text-green-600" : performance < 0 ? "text-red-600" : "text-muted-foreground"
-            )}>
-                {performance.toFixed(2)}%
+        <div className="flex flex-col items-end">
+            <div className="flex items-center gap-1.5">
+                <PerformanceIndicator performance={performance} className="h-4 w-4" />
+                <span className={cn("font-semibold", performanceColor)}>
+                    {performance.toFixed(2)}%
+                </span>
+            </div>
+            <span className={cn("text-sm font-medium", performanceColor)}>
+              {(absoluteGain >= 0 ? '+' : '') + formatCurrency(absoluteGain, asset.currency)}
             </span>
         </div>
       </CardHeader>
@@ -62,7 +68,7 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
               Valore corrente
           </div>
         </div>
-        <div className="flex w-full shrink-0 gap-2 sm:w-auto">
+        <div className="flex w-full shrink-0 flex-wrap justify-end gap-2 sm:w-auto sm:flex-nowrap">
             {asset.type !== 'Conto Bancario' && (
                 <UpdateAssetDialog asset={asset} onAssetUpdate={onUpdate}>
                     <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
