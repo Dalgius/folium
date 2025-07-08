@@ -6,7 +6,6 @@ import { formatCurrency, cn } from "@/lib/utils";
 import {
   Card,
   CardContent,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -39,7 +38,7 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
 
   return (
     <Card className="flex flex-col transition-all hover:shadow-lg">
-      <CardHeader className="flex-row items-center justify-between gap-4 space-y-0 p-4">
+      <CardHeader className="flex-row items-center justify-between gap-4 space-y-0 p-4 pb-2">
         <div className="flex items-center gap-3">
           <AssetIcon type={asset.type} className="h-7 w-7 text-primary" />
           <CardTitle className="text-lg font-headline">{asset.name}</CardTitle>
@@ -54,46 +53,48 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
             </span>
         </div>
       </CardHeader>
-      <CardContent className="flex-grow p-4 pt-0">
-        <div className="text-2xl font-bold text-foreground">
-          {formatCurrency(asset.currentValue, asset.currency)}
+      <CardContent className="flex flex-grow items-end justify-between gap-4 p-4 pt-2">
+        <div>
+          <div className="text-2xl font-bold text-foreground">
+            {formatCurrency(asset.currentValue, asset.currency)}
+          </div>
+          <div className="text-xs text-muted-foreground">
+              Valore corrente
+          </div>
         </div>
-        <div className="text-xs text-muted-foreground">
-            Valore corrente
+        <div className="flex shrink-0 gap-2">
+            {asset.type !== 'Conto Bancario' && (
+                <UpdateAssetDialog asset={asset} onAssetUpdate={onUpdate}>
+                    <Button variant="outline" size="sm">
+                        <Pencil className="mr-2 h-3 w-3" />
+                        Modifica
+                    </Button>
+                </UpdateAssetDialog>
+            )}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm">
+                  <Trash2 className="mr-2 h-3 w-3" />
+                  Elimina
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Sei sicuro?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Questa azione non può essere annullata. Questo eliminerà permanentemente il tuo asset &quot;{asset.name}&quot; dal tuo portafoglio.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => onDelete(asset.id)}>
+                    Continua
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
         </div>
       </CardContent>
-      <CardFooter className="flex justify-end gap-2 p-4 pt-0">
-        {asset.type !== 'Conto Bancario' && (
-            <UpdateAssetDialog asset={asset} onAssetUpdate={onUpdate}>
-                <Button variant="outline" size="sm">
-                    <Pencil className="mr-2 h-3 w-3" />
-                    Modifica
-                </Button>
-            </UpdateAssetDialog>
-        )}
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="destructive" size="sm">
-              <Trash2 className="mr-2 h-3 w-3" />
-              Elimina
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Sei sicuro?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Questa azione non può essere annullata. Questo eliminerà permanentemente il tuo asset &quot;{asset.name}&quot; dal tuo portafoglio.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Annulla</AlertDialogCancel>
-              <AlertDialogAction onClick={() => onDelete(asset.id)}>
-                Continua
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </CardFooter>
     </Card>
   );
 }
