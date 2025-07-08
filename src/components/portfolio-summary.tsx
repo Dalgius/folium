@@ -28,6 +28,10 @@ const timePeriods: { label: string; value: TimePeriod }[] = [
     { label: 'Max', value: 'MAX' },
 ];
 
+const assetTypeToKey = (type: AssetType): string => {
+    return type.toLowerCase().replace(/\s+/g, '-');
+}
+
 const areaChartConfig = {
   value: {
     label: 'Valore',
@@ -36,7 +40,8 @@ const areaChartConfig = {
 } satisfies ChartConfig;
 
 const pieChartConfig = assetTypes.reduce((acc, type, index) => {
-    acc[type] = {
+    const key = assetTypeToKey(type);
+    acc[key] = {
         label: type,
         color: `hsl(var(--chart-${index + 2}))`
     };
@@ -95,11 +100,15 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
         return acc;
       }, {} as Record<AssetType, number>);
 
-      const finalPieData = assetTypes.map(type => ({
-        name: type,
-        value: allocation[type] || 0,
-        fill: `var(--color-${type})`
-      })).filter(d => d.value > 0);
+      const finalPieData = assetTypes.map(type => {
+        const key = assetTypeToKey(type);
+        return {
+          name: key,
+          label: type,
+          value: allocation[type] || 0,
+          fill: `var(--color-${key})`
+        }
+      }).filter(d => d.value > 0);
       setPieData(finalPieData);
 
       // --- Calculate Securities Historical Performance ---
@@ -246,9 +255,9 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
         <CardTitle>Riepilogo Portafoglio</CardTitle>
         <CardDescription>Una visione d'insieme del tuo patrimonio e delle performance dei tuoi investimenti.</CardDescription>
       </CardHeader>
-      <CardContent className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <CardContent className="grid grid-cols-1 lg:grid-cols-5 gap-8">
         {/* Left Column: Securities Performance */}
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 lg:col-span-3">
             <h3 className="text-lg font-semibold font-headline">Andamento Titoli (Azioni & ETF)</h3>
             <div>
               <p className="text-sm text-muted-foreground">{hoverDate || 'Valore Corrente (EUR)'}</p>
@@ -331,7 +340,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
         </div>
 
         {/* Right Column: Total Patrimony */}
-        <div className="flex flex-col gap-4 lg:border-l lg:pl-8">
+        <div className="flex flex-col gap-4 lg:col-span-2 lg:border-l lg:pl-8">
             <h3 className="text-lg font-semibold font-headline">Patrimonio Complessivo</h3>
             <div>
                 <p className="text-sm text-muted-foreground">Valore Totale (EUR)</p>
@@ -348,9 +357,9 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                                 cursor={false}
                                 content={<ChartTooltipContent
                                     hideLabel
-                                    formatter={(value, name) => (
+                                    formatter={(value, name, props) => (
                                         <div className="flex flex-col items-start">
-                                            <span>{name}</span>
+                                            <span>{props.payload.label}</span>
                                             <span className="font-bold">{formatCurrency(value as number, 'EUR')}</span>
                                         </div>
                                     )}
