@@ -253,7 +253,6 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
     <Card>
       <CardHeader>
         <CardTitle>Riepilogo Portafoglio</CardTitle>
-        <CardDescription>Una visione d'insieme del tuo patrimonio e delle performance dei tuoi investimenti.</CardDescription>
       </CardHeader>
       <CardContent className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="flex flex-col gap-4 lg:col-span-2">
