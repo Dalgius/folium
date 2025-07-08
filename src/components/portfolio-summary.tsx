@@ -58,6 +58,8 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
   useEffect(() => {
     const calculateHistoricalPortfolio = async () => {
       setIsLoading(true);
+      const today = new Date();
+
       if (assets.length === 0) {
         setAreaChartData([]);
         setPieData([]);
@@ -66,7 +68,6 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
         return;
       }
 
-      const today = new Date();
       let startDate: Date;
       switch(timePeriod) {
           case '1M': startDate = subMonths(today, 1); break;
@@ -124,7 +125,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                   let assetValue = 0;
 
                   if (asset.type === 'Conto Bancario') {
-                      assetValue = asset.initialValue;
+                      assetValue = asset.currentValue;
                   } else if (asset.ticker && asset.quantity) {
                       const historyForTicker = priceHistoryByTicker[asset.ticker];
                       const pricePoint = historyForTicker.find(p => format(p.date, 'yyyy-MM-dd') === dateStr);
@@ -159,14 +160,26 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
       })).filter(d => d.value > 0);
       setPieData(finalPieData);
 
-
+      // --- Robust Summary Calculation ---
       if (finalAreaChartData.length > 0) {
         const firstValue = finalAreaChartData[0].value;
         const lastValue = finalAreaChartData[finalAreaChartData.length - 1].value;
         setSummary({ totalInitialValue: firstValue, totalCurrentValue: lastValue });
       } else {
-        const totalCurrentValue = assets.reduce((sum, asset) => sum + (asset.currentValue * (rates[asset.currency] || 1)), 0);
-        setSummary({ totalInitialValue: totalCurrentValue, totalCurrentValue });
+        // Fallback if historical data is empty (e.g., only bank accounts)
+        const totalCurrentValue = assets.reduce((sum, asset) => {
+            const rate = rates[asset.currency] || 1;
+            return sum + (asset.currentValue * rate);
+        }, 0);
+        setSummary({ totalInitialValue: totalCurrentValue, totalCurrentValue: totalCurrentValue });
+        
+        // Create a flat line chart if there's a value
+        if (totalCurrentValue > 0) {
+            setAreaChartData([
+                { date: format(subDays(today,1), 'yyyy-MM-dd'), value: totalCurrentValue },
+                { date: format(today, 'yyyy-MM-dd'), value: totalCurrentValue }
+            ]);
+        }
       }
 
       setIsLoading(false);
