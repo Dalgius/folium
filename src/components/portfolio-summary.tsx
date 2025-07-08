@@ -228,12 +228,14 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
   if (isLoading) {
     return (
       <Card>
-        <CardHeader>
+        <CardHeader className="p-6">
           <Skeleton className="h-6 w-3/4" />
         </CardHeader>
-        <CardContent className="flex flex-col items-center justify-center gap-6">
-            <Skeleton className="h-48 w-full" />
-            <Skeleton className="h-10 w-full" />
+        <CardContent className="p-6 pt-0">
+          <div className="flex flex-col items-center justify-center gap-6">
+              <Skeleton className="h-48 w-full" />
+              <Skeleton className="h-10 w-full" />
+          </div>
         </CardContent>
       </Card>
     );
@@ -242,10 +244,10 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
   if (assets.length === 0 && !isLoading) {
     return (
       <Card>
-        <CardHeader>
+        <CardHeader className="p-6">
           <CardTitle>Riepilogo Portafoglio</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-6 pt-0">
           <p className="text-2xl font-bold">{formatCurrency(0, 'EUR')}</p>
           <p className="text-sm text-muted-foreground">Aggiungi un asset per iniziare.</p>
         </CardContent>
@@ -259,7 +261,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
         <CardTitle>Riepilogo Portafoglio</CardTitle>
       </CardHeader>
       <CardContent className="grid grid-cols-1 lg:grid-cols-4 gap-8 p-6 pt-0">
-        <div className="flex flex-col items-start gap-4 col-span-1 lg:col-span-3">
+        <div className="flex flex-col items-start gap-4 lg:col-span-3">
             <h3 className="text-lg font-semibold font-headline">Andamento Titoli (Azioni & ETF)</h3>
             <div>
               <p className="text-sm text-muted-foreground">{hoverDate || 'Valore Corrente (EUR)'}</p>
@@ -282,7 +284,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
             </div>
 
             {securitiesSummary && securitiesSummary.totalCurrentValue > 0 ? (
-                <div className="flex flex-col items-start w-full gap-4">
+                <div className="flex w-full flex-col items-start gap-4">
                     <ChartContainer config={areaChartConfig} className="h-[250px] w-full">
                         <AreaChart 
                         data={historicalChartData}
@@ -318,7 +320,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                         </AreaChart>
                     </ChartContainer>
 
-                    <div className="flex justify-start gap-1 rounded-lg border bg-card p-1">
+                    <div className="flex flex-wrap justify-start gap-1 rounded-lg border bg-card p-1">
                         {timePeriods.map((period) => (
                             <Button
                                 key={period.value}
@@ -332,7 +334,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                     </div>
                 </div>
             ) : (
-                <div className="flex flex-col items-center justify-center h-[214px] text-center border-2 border-dashed rounded-lg p-4 w-full">
+                <div className="flex h-[214px] w-full flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 text-center">
                      <TrendingUp className="h-10 w-10 text-muted-foreground" />
                      <p className="mt-2 text-sm font-medium">Nessun titolo nel portafoglio</p>
                      <p className="text-xs text-muted-foreground">Aggiungi azioni o ETF per vederne l'andamento.</p>
@@ -340,7 +342,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
             )}
         </div>
 
-        <div className="flex flex-col gap-4 col-span-1 lg:border-l lg:pl-8 items-start">
+        <div className="flex flex-col gap-4 col-span-1 lg:border-l lg:pl-8 lg:pt-0 border-transparent pt-6">
             <div className="flex-shrink-0">
                 <h3 className="text-lg font-semibold font-headline">Patrimonio Complessivo</h3>
                 <div>
@@ -352,7 +354,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
             </div>
             <div className="flex-1 w-full flex items-center justify-center min-h-0">
                  {pieData.length > 0 ? (
-                    <ChartContainer config={pieChartConfig} className="w-full h-full">
+                    <ChartContainer config={pieChartConfig} className="w-full h-full min-h-[200px]">
                         <PieChart>
                             <ChartTooltip
                                 cursor={false}

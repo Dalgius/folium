@@ -53,7 +53,7 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
             </span>
         </div>
       </CardHeader>
-      <CardContent className="flex flex-grow items-end justify-between gap-4 p-4 pt-2">
+      <CardContent className="flex flex-grow flex-col items-start gap-4 p-4 pt-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="text-2xl font-bold text-foreground">
             {formatCurrency(asset.currentValue, asset.currency)}
@@ -62,10 +62,10 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
               Valore corrente
           </div>
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex w-full shrink-0 gap-2 sm:w-auto">
             {asset.type !== 'Conto Bancario' && (
                 <UpdateAssetDialog asset={asset} onAssetUpdate={onUpdate}>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
                         <Pencil className="mr-2 h-3 w-3" />
                         Modifica
                     </Button>
@@ -73,7 +73,7 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
             )}
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm">
+                <Button variant="destructive" size="sm" className="flex-1 sm:flex-none">
                   <Trash2 className="mr-2 h-3 w-3" />
                   Elimina
                 </Button>
