@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -100,9 +101,6 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
             <div>
               <div className="text-2xl font-bold text-foreground">
                 {formatCurrency(asset.currentValue, asset.currency)}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                  Valore corrente
               </div>
             </div>
             <div className="text-right flex flex-col items-end min-h-[36px] justify-end">
