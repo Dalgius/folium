@@ -72,7 +72,13 @@ export default function Home() {
 
             if (assetToUpdate.ticker) {
                 const quote = await getQuote(assetToUpdate.ticker);
-                finalUpdatedData.currentValue = quote ? quote.price * quantity : finalUpdatedData.initialValue;
+                if (quote) {
+                    finalUpdatedData.currentValue = quote.price * quantity;
+                    finalUpdatedData.dailyChange = quote.dailyChange;
+                    finalUpdatedData.dailyChangePercent = quote.dailyChangePercent;
+                } else {
+                    finalUpdatedData.currentValue = finalUpdatedData.initialValue;
+                }
             }
         } else if (updatedData.currentValue !== undefined) {
             finalUpdatedData.initialValue = updatedData.currentValue;
@@ -103,8 +109,13 @@ export default function Home() {
                 const index = updatedAssets.findIndex(a => a.id === asset.id);
                 if (index !== -1) {
                     const newCurrentValue = quote.price * asset.quantity;
-                    updatedAssets[index].currentValue = newCurrentValue;
-                    await updateAsset(asset.id, { currentValue: newCurrentValue });
+                    const updateData = {
+                        currentValue: newCurrentValue,
+                        dailyChange: quote.dailyChange,
+                        dailyChangePercent: quote.dailyChangePercent,
+                    };
+                    updatedAssets[index] = { ...updatedAssets[index], ...updateData };
+                    await updateAsset(asset.id, updateData);
                 }
             }
         }
@@ -164,7 +175,7 @@ export default function Home() {
         <header className="mb-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
              <div className="flex items-center gap-3">
-                <Image src="/logo.png" alt="Folium Logo" width={40} height={40} />
+                <Image src="/logo.png" alt="Folium Logo" width={48} height={48} />
                 <div>
                   <h1 className="text-3xl font-bold text-primary font-headline tracking-tight">Folium</h1>
                   {user && <p className="text-sm text-muted-foreground">Bentornato, {user.email}</p>}

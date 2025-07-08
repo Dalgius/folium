@@ -44,6 +44,14 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
   const performanceColor = cn(
     performance > 0 ? "text-green-600" : performance < 0 ? "text-red-600" : "text-muted-foreground"
   );
+  
+  const dailyGainAbsolute = asset.dailyChange && asset.quantity ? asset.dailyChange * asset.quantity : 0;
+  const dailyGainPercent = asset.dailyChangePercent ? asset.dailyChangePercent * 100 : 0;
+  const dailyPerformanceColor = cn({
+    "text-green-600": dailyGainAbsolute > 0,
+    "text-red-600": dailyGainAbsolute < 0,
+    "text-muted-foreground": dailyGainAbsolute === 0,
+  });
 
   return (
     <Card className={cn(
@@ -72,13 +80,25 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
             </div>
         </CardHeader>
         <CardContent className="p-4 pt-2">
-          <div>
-            <div className="text-2xl font-bold text-foreground">
-              {formatCurrency(asset.currentValue, asset.currency)}
+          <div className="flex justify-between items-end">
+            <div>
+              <div className="text-2xl font-bold text-foreground">
+                {formatCurrency(asset.currentValue, asset.currency)}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                  Valore corrente
+              </div>
             </div>
-            <div className="text-xs text-muted-foreground">
-                Valore corrente
-            </div>
+            {(asset.type === 'Azione' || asset.type === 'ETF') && asset.dailyChange !== undefined && asset.dailyChangePercent !== undefined && (
+              <div className="text-right flex flex-col items-end">
+                  <span className={cn("text-sm font-semibold", dailyPerformanceColor)}>
+                      {(dailyGainPercent >= 0 ? '+' : '')}{dailyGainPercent.toFixed(2)}%
+                  </span>
+                  <span className={cn("text-xs font-medium", dailyPerformanceColor)}>
+                    {(dailyGainAbsolute >= 0 ? '+' : '')}{formatCurrency(dailyGainAbsolute, asset.currency)} (Oggi)
+                  </span>
+              </div>
+            )}
           </div>
         </CardContent>
       </div>

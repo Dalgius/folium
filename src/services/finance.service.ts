@@ -63,6 +63,8 @@ export interface Quote {
     price: number;
     currency: string;
     name: string;
+    dailyChange?: number;
+    dailyChangePercent?: number;
 }
 
 export async function getQuote(ticker: string): Promise<Quote | null> {
@@ -74,6 +76,8 @@ export async function getQuote(ticker: string): Promise<Quote | null> {
                 price: result.regularMarketPrice,
                 currency: result.currency,
                 name: result.longName || result.shortName || ticker,
+                dailyChange: result.regularMarketChange,
+                dailyChangePercent: result.regularMarketChangePercent,
             };
         }
         return null;

@@ -32,6 +32,8 @@ const fromFirestore = (docSnap: DocumentSnapshot | QueryDocumentSnapshot): Asset
     quantity: data.quantity,
     purchasePrice: data.purchasePrice,
     purchaseDate: data.purchaseDate instanceof Timestamp ? data.purchaseDate.toDate().toISOString() : undefined,
+    dailyChange: data.dailyChange,
+    dailyChangePercent: data.dailyChangePercent,
   };
   return asset;
 };

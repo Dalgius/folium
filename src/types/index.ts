@@ -16,4 +16,6 @@ export interface Asset {
   purchasePrice?: number;
   purchaseDate?: string;
   userId?: string;
+  dailyChange?: number;
+  dailyChangePercent?: number;
 }

@@ -45,7 +45,6 @@ import {
   Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
@@ -184,6 +183,8 @@ export function AddAssetDialog({ children, onAssetAdd }: AddAssetDialogProps) {
       currency: data.currency,
       initialValue: initialValue,
       currentValue: currentValue,
+      dailyChange: quote?.dailyChange,
+      dailyChangePercent: quote?.dailyChangePercent,
     };
     onAssetAdd(newAssetData);
     setIsOpen(false);
