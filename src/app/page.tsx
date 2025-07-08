@@ -17,7 +17,44 @@ import { PortfolioSummary } from '@/components/portfolio-summary';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
-import { getAssets, addAsset, updateAsset, deleteAsset, type AddableAsset } from '@/services/asset.service';
+import { type AddableAsset } from '@/services/asset.service';
+
+const initialAssets: Asset[] = [
+    {
+        id: '1',
+        name: 'Apple Inc.',
+        ticker: 'AAPL',
+        type: 'Azione',
+        quantity: 10,
+        purchasePrice: 150,
+        purchaseDate: new Date('2023-01-15').toISOString(),
+        currency: 'USD',
+        initialValue: 1500,
+        currentValue: 1750,
+    },
+    {
+        id: '2',
+        name: 'iShares Core S&P 500 ETF',
+        ticker: 'IVV',
+        type: 'ETF',
+        quantity: 5,
+        purchasePrice: 400,
+        purchaseDate: new Date('2023-03-20').toISOString(),
+        currency: 'USD',
+        initialValue: 2000,
+        currentValue: 2200,
+    },
+    {
+        id: '3',
+        name: 'Conto Corrente Principale',
+        type: 'Conto Bancario',
+        currency: 'EUR',
+        initialValue: 5000,
+        currentValue: 5000,
+        purchaseDate: new Date().toISOString(),
+    }
+];
+
 
 export default function Home() {
   const { user } = useAuth();
@@ -26,27 +63,11 @@ export default function Home() {
   const [activeFilter, setActiveFilter] = useState<AssetType | 'Tutti'>('Tutti');
   const { toast } = useToast();
 
-  const fetchAssets = async () => {
-    if (!user) return;
-    try {
-      setIsLoading(true);
-      const fetchedAssets = await getAssets();
-      setAssets(fetchedAssets);
-    } catch (error: any) {
-      console.error("Errore nel recupero degli asset:", error);
-      toast({
-        title: "Errore",
-        description: "Impossibile caricare i dati del portafoglio.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
     if (user) {
-      fetchAssets();
+      // Simula il caricamento dei dati
+      setAssets(initialAssets);
+      setIsLoading(false);
     }
   }, [user]);
 
@@ -54,46 +75,46 @@ export default function Home() {
     await signOut(auth);
   };
 
-  const handleAddAsset = async (asset: AddableAsset) => {
+  const handleAddAsset = (asset: AddableAsset) => {
     try {
-      await addAsset(asset);
-      toast({ title: "Successo", description: "Asset aggiunto correttamente." });
-      fetchAssets(); 
+        const newAsset: Asset = {
+            ...asset,
+            id: crypto.randomUUID(),
+        };
+        setAssets(prevAssets => [newAsset, ...prevAssets]);
+        toast({ title: "Successo", description: "Asset aggiunto correttamente." });
     } catch (error) {
-      console.error("Errore nell'aggiunta dell'asset:", error);
-      toast({ title: "Errore", description: "Impossibile aggiungere l'asset.", variant: "destructive" });
+        console.error("Errore nell'aggiunta dell'asset:", error);
+        toast({ title: "Errore", description: "Impossibile aggiungere l'asset.", variant: "destructive" });
     }
   };
 
   const handleUpdateAsset = async (id: string, updatedData: Partial<Omit<Asset, 'id'>>) => {
      try {
+        let finalUpdatedData = { ...updatedData };
         const assetToUpdate = assets.find(a => a.id === id);
         if (!assetToUpdate) return;
         
-        const quantity = updatedData.quantity ?? assetToUpdate.quantity;
-        const purchasePrice = updatedData.purchasePrice ?? assetToUpdate.purchasePrice;
-        
-        const dataWithRecalculatedValues: Partial<Omit<Asset, 'id'>> = { ...updatedData };
-
-        if (quantity !== undefined && purchasePrice !== undefined) {
+        // Se la quantità o il prezzo d'acquisto cambiano, ricalcoliamo i valori
+        if (updatedData.quantity !== undefined || updatedData.purchasePrice !== undefined) {
+            const quantity = updatedData.quantity ?? assetToUpdate.quantity ?? 0;
+            const purchasePrice = updatedData.purchasePrice ?? assetToUpdate.purchasePrice ?? 0;
             const initialValue = quantity * purchasePrice;
-            dataWithRecalculatedValues.initialValue = initialValue;
+            finalUpdatedData.initialValue = initialValue;
 
-            if(assetToUpdate.ticker) {
-              const quote = await getQuote(assetToUpdate.ticker);
-              if (quote?.price) {
-                dataWithRecalculatedValues.currentValue = quote.price * quantity;
-              } else {
-                dataWithRecalculatedValues.currentValue = initialValue;
-              }
+            // Ricalcola il valore corrente
+            if (assetToUpdate.ticker) {
+                const quote = await getQuote(assetToUpdate.ticker);
+                finalUpdatedData.currentValue = quote ? quote.price * quantity : initialValue;
             } else {
-               dataWithRecalculatedValues.currentValue = initialValue;
+                finalUpdatedData.currentValue = initialValue;
             }
         }
         
-        await updateAsset(id, dataWithRecalculatedValues);
+        setAssets(prevAssets => prevAssets.map(asset => 
+            asset.id === id ? { ...asset, ...finalUpdatedData } : asset
+        ));
         toast({ title: "Successo", description: "Asset aggiornato." });
-        fetchAssets();
     } catch (error) {
         console.error("Errore nell'aggiornamento dell'asset:", error);
         toast({ title: "Errore", description: "Impossibile aggiornare l'asset.", variant: "destructive" });
@@ -104,31 +125,32 @@ export default function Home() {
     toast({ title: "In corso...", description: "Aggiornamento dei valori di mercato in corso." });
     try {
         const assetsToRefresh = assets.filter(a => a.type === 'Azione' || a.type === 'ETF');
-        const updatePromises = assetsToRefresh.map(async (asset) => {
-            if (!asset.ticker || !asset.quantity) return;
+        const updatedAssets = [...assets];
+        
+        for (const asset of assetsToRefresh) {
+            if (!asset.ticker || !asset.quantity) continue;
             const quote = await getQuote(asset.ticker);
             if (quote?.price) {
-                const newCurrentValue = quote.price * asset.quantity;
-                return updateAsset(asset.id, { currentValue: newCurrentValue });
+                const index = updatedAssets.findIndex(a => a.id === asset.id);
+                if (index !== -1) {
+                    const newCurrentValue = quote.price * asset.quantity;
+                    updatedAssets[index].currentValue = newCurrentValue;
+                }
             }
-        });
+        }
         
-        await Promise.all(updatePromises);
-
+        setAssets(updatedAssets);
         toast({ title: "Successo", description: "Tutti gli asset sono stati aggiornati con i valori di mercato." });
-        fetchAssets();
     } catch (error) {
         console.error("Errore durante l'aggiornamento di tutti gli asset:", error);
         toast({ title: "Errore", description: "Impossibile aggiornare i valori degli asset.", variant: "destructive" });
     }
   };
 
-
-  const handleDeleteAsset = async (id: string) => {
+  const handleDeleteAsset = (id: string) => {
     try {
-        await deleteAsset(id);
+        setAssets(prevAssets => prevAssets.filter(asset => asset.id !== id));
         toast({ title: "Successo", description: "Asset eliminato." });
-        fetchAssets();
     } catch (error) {
         console.error("Errore nell'eliminazione dell'asset:", error);
         toast({ title: "Errore", description: "Impossibile eliminare l'asset.", variant: "destructive" });
@@ -228,7 +250,7 @@ export default function Home() {
                     <AssetCard
                     key={asset.id}
                     asset={asset}
-                    onDelete={handleDeleteAsset}
+                    onDelete={() => handleDeleteAsset(asset.id)}
                     onUpdate={handleUpdateAsset}
                     />
                 ))}
