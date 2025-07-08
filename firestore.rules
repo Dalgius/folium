@@ -1,12 +1,11 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // REGOLE DI SVILUPPO TEMPORANEE
-    // Queste regole permettono a qualsiasi utente autenticato di leggere e scrivere
-    // in qualsiasi punto del database. Sono utili per sbloccare lo sviluppo,
-    // ma DEVONO essere sostituite con regole più restrittive prima del rilascio.
+    // REGOLE DI DEBUG TEMPORANEE:
+    // Consente a qualsiasi utente autenticato di leggere e scrivere in qualsiasi
+    // documento del database. Questo è insicuro per la produzione ma
+    // necessario per diagnosticare un problema di permessi persistente.
     match /{document=**} {
       allow read, write: if request.auth != null;
     }
