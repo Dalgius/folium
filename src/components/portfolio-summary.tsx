@@ -346,7 +346,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                 </p>
             </div>
              {pieData.length > 0 ? (
-                <ChartContainer config={pieChartConfig} className="w-full aspect-square">
+                <ChartContainer config={pieChartConfig} className="w-full aspect-square mt-2">
                     <PieChart>
                         <ChartTooltip
                             cursor={false}
@@ -366,12 +366,11 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                             nameKey="name"
                             cx="50%"
                             cy="50%"
-                            innerRadius="50%"
-                            outerRadius="70%"
+                            innerRadius="60%"
+                            outerRadius="90%"
                             paddingAngle={2}
                             label={false}
                         />
-                        <ChartLegend content={<ChartLegendContent nameKey="label" />} />
                     </PieChart>
                 </ChartContainer>
              ) : (
@@ -385,5 +384,3 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
     </Card>
   );
 }
-
-    
