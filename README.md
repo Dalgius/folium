@@ -1,4 +1,4 @@
-# Portfolio Pulse
+# CrescitaChiara
 
 A Next.js application to track your assets and watch your portfolio grow.
 
