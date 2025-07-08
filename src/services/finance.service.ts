@@ -102,3 +102,21 @@ export async function getExchangeRate(from: Currency, to: Currency): Promise<num
         return null;
     }
 }
+
+export interface HistoricalDataPoint {
+  date: Date;
+  close: number;
+}
+
+export async function getHistoricalData(ticker: string, startDate: string): Promise<HistoricalDataPoint[]> {
+  try {
+    const results = await yahooFinance.historical(ticker, {
+      period1: startDate,
+      interval: '1d'
+    });
+    return results.map(r => ({ date: r.date, close: r.close! })).filter(r => r.close);
+  } catch (error) {
+    console.warn(`Dati storici non trovati per ${ticker}. Potrebbe essere un ticker non valido o delistato.`, error);
+    return [];
+  }
+}

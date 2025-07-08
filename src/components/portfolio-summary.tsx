@@ -1,112 +1,179 @@
 
 "use client";
 
-import { Asset } from "@/types";
+import { Asset, AssetType } from "@/types";
 import { formatCurrency, cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
-import { Pie, PieChart } from "recharts";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { useState, useEffect } from "react";
-import { getExchangeRate } from "@/services/finance.service";
+import { getExchangeRate, getHistoricalData, HistoricalDataPoint } from "@/services/finance.service";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { format, subMonths, subYears, startOfYear, parseISO, subDays } from 'date-fns';
+import { it } from 'date-fns/locale';
+import { Button } from "./ui/button";
+
 
 interface PortfolioSummaryProps {
   assets: Asset[];
 }
 
+type TimePeriod = '1M' | '6M' | '1Y' | 'YTD' | 'MAX';
+
+const timePeriods: { label: string; value: TimePeriod, days: number }[] = [
+    { label: '1M', value: '1M', days: 30 },
+    { label: '6M', value: '6M', days: 180 },
+    { label: '1A', value: '1Y', days: 365 },
+    { label: 'YTD', value: 'YTD', days: 0 }, // Special case
+    { label: 'Max', value: 'MAX', days: 9999 },
+];
+
 const chartConfig = {
-  "Conto Bancario": {
-    label: "Conti Bancari",
-    color: "hsl(var(--chart-1))",
-  },
-  "Azione": {
-    label: "Azioni",
-    color: "hsl(var(--chart-2))",
-  },
-  "ETF": {
-    label: "ETF",
-    color: "hsl(var(--chart-3))",
+  value: {
+    label: 'Valore',
+    color: 'hsl(var(--chart-1))',
   },
 } satisfies ChartConfig;
 
+
 export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
-  const [summary, setSummary] = useState<{
-    totalInitialValue: number;
-    totalCurrentValue: number;
-    pieData: any[];
-  } | null>(null);
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [summary, setSummary] = useState<{ totalInitialValue: number; totalCurrentValue: number; } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>('1Y');
+  
+  const [hoverValue, setHoverValue] = useState<number | null>(null);
+  const [hoverDate, setHoverDate] = useState<string | null>(null);
 
   useEffect(() => {
-    const calculateSummary = async () => {
+    const calculateHistoricalPortfolio = async () => {
+      setIsLoading(true);
       if (assets.length === 0) {
-        setSummary({ totalInitialValue: 0, totalCurrentValue: 0, pieData: [] });
+        setChartData([]);
+        setSummary({ totalInitialValue: 0, totalCurrentValue: 0 });
         setIsLoading(false);
         return;
       }
 
-      setIsLoading(true);
-      let initialEUR = 0;
-      let currentEUR = 0;
-      const assetValuesByType: { [key: string]: number } = {};
+      const today = new Date();
+      let startDate: Date;
+      switch(timePeriod) {
+          case '1M': startDate = subMonths(today, 1); break;
+          case '6M': startDate = subMonths(today, 6); break;
+          case '1Y': startDate = subYears(today, 1); break;
+          case 'YTD': startDate = startOfYear(today); break;
+          case 'MAX':
+          default:
+              const firstPurchaseDate = assets.reduce((earliest, asset) => {
+                  if (!asset.purchaseDate) return earliest;
+                  const purchaseD = parseISO(asset.purchaseDate);
+                  return purchaseD < earliest ? purchaseD : earliest;
+              }, today);
+              startDate = firstPurchaseDate < today ? firstPurchaseDate : subDays(today, 1);
+              break;
+      }
+      
+      const startDateString = format(startDate, 'yyyy-MM-dd');
 
-      const exchangeRateCache = new Map<string, number>();
-      exchangeRateCache.set('EUR', 1);
+      const stockAndEtfAssets = assets.filter(a => a.ticker && a.quantity);
+      const uniqueTickers = [...new Set(stockAndEtfAssets.map(a => a.ticker!))];
+      const uniqueCurrencies = [...new Set(assets.map(a => a.currency))];
 
-      for (const asset of assets) {
-        let rate = exchangeRateCache.get(asset.currency);
+      const [historicalDataResults, exchangeRateResults] = await Promise.all([
+          Promise.all(uniqueTickers.map(ticker => getHistoricalData(ticker, startDateString))),
+          Promise.all(uniqueCurrencies.map(currency => currency === 'EUR' ? Promise.resolve({currency, rate: 1}) : getExchangeRate(currency, 'EUR').then(rate => ({ currency, rate: rate || 1 }))))
+      ]);
 
-        if (rate === undefined) {
-          const fetchedRate = await getExchangeRate(asset.currency, 'EUR');
-          if (fetchedRate) {
-            rate = fetchedRate;
-            exchangeRateCache.set(asset.currency, rate);
-          } else {
-            console.warn(`Could not fetch exchange rate for ${asset.currency} to EUR. Skipping asset ${asset.name} in total summary.`);
-            continue;
+      const rates = exchangeRateResults.reduce((acc, {currency, rate}) => { acc[currency] = rate; return acc; }, {} as Record<string, number>);
+      
+      const priceHistoryByTicker: Record<string, HistoricalDataPoint[]> = {};
+      uniqueTickers.forEach((ticker, i) => {
+          priceHistoryByTicker[ticker] = historicalDataResults[i];
+      });
+
+      const dateSet = new Set<string>();
+      Object.values(priceHistoryByTicker).forEach(history => history.forEach(p => dateSet.add(format(p.date, 'yyyy-MM-dd'))));
+      
+      for (let d = new Date(startDate); d <= today; d = subDays(d, -1)) {
+        if (d >= startDate) dateSet.add(format(d, 'yyyy-MM-dd'));
+      }
+      
+      const sortedDates = Array.from(dateSet).filter(d => parseISO(d) >= startDate).sort();
+      const lastKnownPrices: Record<string, number> = {};
+
+      const finalChartData = sortedDates.map(dateStr => {
+          const currentDate = parseISO(dateStr);
+          let dailyValueEUR = 0;
+
+          for (const asset of assets) {
+              const assetPurchaseDate = asset.purchaseDate ? parseISO(asset.purchaseDate) : new Date(0);
+
+              if (currentDate >= assetPurchaseDate) {
+                  const rate = rates[asset.currency] || 1;
+                  let assetValue = 0;
+
+                  if (asset.type === 'Conto Bancario') {
+                      assetValue = asset.initialValue;
+                  } else if (asset.ticker && asset.quantity) {
+                      const historyForTicker = priceHistoryByTicker[asset.ticker];
+                      const pricePoint = historyForTicker.find(p => format(p.date, 'yyyy-MM-dd') === dateStr);
+                      
+                      if (pricePoint) {
+                          lastKnownPrices[asset.ticker] = pricePoint.close;
+                      }
+                      
+                      const price = lastKnownPrices[asset.ticker] || asset.purchasePrice || 0;
+                      assetValue = price * asset.quantity;
+                  }
+                  dailyValueEUR += assetValue * rate;
+              }
           }
-        }
-        
-        const currentValueInEUR = asset.currentValue * rate;
-        const initialValueInEUR = asset.initialValue * rate;
+          return { date: dateStr, value: parseFloat(dailyValueEUR.toFixed(2)) };
+      }).filter(d => d.value > 0);
 
-        currentEUR += currentValueInEUR;
-        initialEUR += initialValueInEUR;
+      setChartData(finalChartData);
 
-        if (!assetValuesByType[asset.type]) {
-          assetValuesByType[asset.type] = 0;
-        }
-        assetValuesByType[asset.type] += currentValueInEUR;
+      if (finalChartData.length > 0) {
+        const firstValue = finalChartData[0].value;
+        const lastValue = finalChartData[finalChartData.length - 1].value;
+        setSummary({ totalInitialValue: firstValue, totalCurrentValue: lastValue });
+      } else {
+        const totalCurrentValue = assets.reduce((sum, asset) => sum + (asset.currentValue * (rates[asset.currency] || 1)), 0);
+        setSummary({ totalInitialValue: totalCurrentValue, totalCurrentValue });
       }
 
-      const pieData = Object.entries(assetValuesByType)
-        .map(([name, value]) => ({
-          name,
-          value,
-          fill: chartConfig[name as keyof typeof chartConfig]?.color || "hsl(var(--chart-5))",
-        }))
-        .sort((a, b) => b.value - a.value);
-
-      setSummary({
-        totalInitialValue: initialEUR,
-        totalCurrentValue: currentEUR,
-        pieData,
-      });
       setIsLoading(false);
     };
 
-    calculateSummary();
-  }, [assets]);
+    calculateHistoricalPortfolio();
+  }, [assets, timePeriod]);
+  
+  const handleMouseMove = (e: any) => {
+    if (e.activePayload && e.activePayload.length > 0) {
+        setHoverValue(e.activePayload[0].payload.value);
+        setHoverDate(format(parseISO(e.activePayload[0].payload.date), 'd MMM yyyy', {locale: it}));
+    }
+  };
+  const handleMouseLeave = () => {
+      setHoverValue(null);
+      setHoverDate(null);
+  };
 
-  const { totalInitialValue, totalCurrentValue, pieData } = summary || { totalInitialValue: 0, totalCurrentValue: 0, pieData: [] };
+
+  const displayValue = hoverValue ?? summary?.totalCurrentValue ?? 0;
+  const initialValue = summary?.totalInitialValue ?? 0;
   
-  const overallPerformance = totalInitialValue !== 0
-    ? ((totalCurrentValue - totalInitialValue) / totalInitialValue) * 100
-    : 0;
+  const overallPerformance = initialValue !== 0 ? ((displayValue - initialValue) / initialValue) * 100 : 0;
+  const valueChange = displayValue - initialValue;
+
+  const PerformanceIcon = overallPerformance > 0.01 ? TrendingUp : overallPerformance < -0.01 ? TrendingDown : Minus;
   
-  const valueChange = totalCurrentValue - totalInitialValue;
-  const PerformanceIcon = overallPerformance > 0 ? TrendingUp : overallPerformance < 0 ? TrendingDown : Minus;
+  const performanceColor = cn({
+    "text-green-600": overallPerformance > 0.01,
+    "text-red-600": overallPerformance < -0.01,
+    "text-muted-foreground": Math.abs(overallPerformance) <= 0.01
+  });
 
   if (isLoading) {
     return (
@@ -115,12 +182,9 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
           <Skeleton className="h-6 w-3/4" />
           <Skeleton className="h-4 w-1/2" />
         </CardHeader>
-        <CardContent className="flex flex-col items-center justify-center gap-6 sm:flex-row">
-            <Skeleton className="h-48 w-48 rounded-full" />
-            <div className="flex-1 space-y-4">
-                <Skeleton className="h-10 w-3/4" />
-                <Skeleton className="h-8 w-1/2" />
-            </div>
+        <CardContent className="flex flex-col items-center justify-center gap-6">
+            <Skeleton className="h-48 w-full" />
+            <Skeleton className="h-10 w-full" />
         </CardContent>
       </Card>
     );
@@ -145,82 +209,95 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
     <Card>
       <CardHeader>
         <CardTitle>Riepilogo Portafoglio</CardTitle>
-        <CardDescription>Andamento e composizione del tuo portafoglio in EUR.</CardDescription>
+        <CardDescription>Andamento del tuo portafoglio in EUR ({timePeriods.find(p=>p.value === timePeriod)?.label}).</CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col items-center gap-6 sm:flex-row">
-        <div className="w-full flex-1 sm:w-1/3">
-           <ChartContainer
-                config={chartConfig}
-                className="mx-auto aspect-square max-h-[250px]"
-            >
-                <PieChart>
-                    <ChartTooltip
-                        cursor={false}
-                        content={<ChartTooltipContent 
-                          hideLabel 
-                          formatter={(value, name) => [formatCurrency(value as number, 'EUR'), chartConfig[name as keyof typeof chartConfig].label]}
-                        />}
-                    />
-                    <Pie
-                        data={pieData}
-                        dataKey="value"
-                        nameKey="name"
-                        innerRadius={60}
-                        strokeWidth={2}
-                        labelLine={false}
-                    >
-                    </Pie>
-                </PieChart>
-            </ChartContainer>
-        </div>
-        <div className="flex flex-1 flex-col items-center justify-center space-y-4 sm:items-start">
-            <div>
-                <p className="text-sm text-muted-foreground">Valore Totale (EUR)</p>
-                <p className="text-4xl font-bold text-primary font-headline">
-                  {formatCurrency(totalCurrentValue, 'EUR')}
-                </p>
-            </div>
-             <div className="flex items-center gap-2">
-                <PerformanceIcon className={cn(
-                    "h-6 w-6",
-                    overallPerformance > 0 ? "text-green-600" : overallPerformance < 0 ? "text-red-600" : "text-muted-foreground"
-                )} />
-                <div className="flex flex-wrap items-baseline gap-x-2">
-                    <p className="text-2xl font-bold">
-                        <span className={cn(
-                            overallPerformance > 0 ? "text-green-600" : overallPerformance < 0 ? "text-red-600" : "text-muted-foreground"
-                        )}>
-                            {overallPerformance.toFixed(2)}%
-                        </span>
-                    </p>
-                    <p className={cn("text-sm font-medium",
-                        valueChange > 0 ? "text-green-600" : valueChange < 0 ? "text-red-600" : "text-muted-foreground"
-                    )}>
-                        ({valueChange >= 0 ? '+' : ''}{formatCurrency(valueChange, 'EUR')})
-                    </p>
-                </div>
-            </div>
-             <div className="flex w-full flex-col gap-2 text-sm">
-              <div className="font-medium text-muted-foreground">Composizione</div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                {pieData.map((entry) => (
-                  <div key={entry.name} className="flex items-center gap-2">
-                    <span
-                      className="h-2.5 w-2.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: entry.fill }}
-                    />
-                    <div className="flex flex-1 justify-between">
-                      <span className="text-muted-foreground">
-                        {chartConfig[entry.name as keyof typeof chartConfig]?.label || entry.name}
-                      </span>
-                      <span className="font-medium text-foreground">
-                        {formatCurrency(entry.value, 'EUR')}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+      <CardContent className="flex flex-col gap-6">
+        <div>
+          <p className="text-sm text-muted-foreground">{hoverDate || 'Valore Totale (EUR)'}</p>
+          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
+            <p className="text-4xl font-bold text-primary font-headline">
+              {formatCurrency(displayValue, 'EUR')}
+            </p>
+            <div className="flex items-center gap-2">
+              <PerformanceIcon className={cn("h-6 w-6", performanceColor)} />
+              <div className="flex flex-wrap items-baseline gap-x-2">
+                  <p className={cn("text-2xl font-bold", performanceColor)}>
+                      {overallPerformance.toFixed(2)}%
+                  </p>
+                  <p className={cn("text-sm font-medium", performanceColor)}>
+                      ({valueChange >= 0 ? '+' : ''}{formatCurrency(valueChange, 'EUR')})
+                  </p>
               </div>
             </div>
+          </div>
+        </div>
+        
+        <ChartContainer config={chartConfig} className="h-[250px] w-full">
+            <AreaChart 
+              data={chartData} 
+              margin={{ top: 5, right: 10, left: 10, bottom: 0 }}
+              onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
+            >
+                <defs>
+                    <linearGradient id="fillValue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="var(--color-value)" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="var(--color-value)" stopOpacity={0.1}/>
+                    </linearGradient>
+                </defs>
+                <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                <XAxis
+                    dataKey="date"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    tickFormatter={(value) => {
+                        const date = parseISO(value);
+                        if (timePeriod === '1M') return format(date, "d MMM", { locale: it });
+                        return format(date, "MMM yy", { locale: it });
+                    }}
+                />
+                <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    tickFormatter={(value) => {
+                        if (typeof value !== 'number') return '';
+                        return new Intl.NumberFormat('it-IT', { notation: 'compact', compactDisplay: 'short' }).format(value);
+                    }}
+                    domain={['dataMin - (dataMax-dataMin)*0.1', 'dataMax + (dataMax-dataMin)*0.1']}
+                />
+                <ChartTooltip
+                    cursor={true}
+                    content={<ChartTooltipContent
+                        formatter={(value) => formatCurrency(value as number, 'EUR')}
+                        labelFormatter={(label) => format(parseISO(label), "eeee, d MMMM yyyy", { locale: it })}
+                        indicator="dot"
+                    />}
+                />
+                <Area
+                    dataKey="value"
+                    type="natural"
+                    fill="url(#fillValue)"
+                    stroke="var(--color-value)"
+                    strokeWidth={2}
+                    dot={false}
+                />
+            </AreaChart>
+        </ChartContainer>
+
+        <div className="flex justify-center gap-1 rounded-lg border bg-card p-1">
+            {timePeriods.map((period) => (
+                <Button
+                    key={period.value}
+                    variant={timePeriod === period.value ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setTimePeriod(period.value)}
+                    className="flex-1"
+                >
+                    {period.label}
+                </Button>
+            ))}
         </div>
       </CardContent>
     </Card>
