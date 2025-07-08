@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -27,6 +26,12 @@ import { Trash2, Pencil, ChevronDown } from "lucide-react";
 import { UpdateAssetDialog } from "./update-asset-dialog";
 import { UpdateBankAccountDialog } from "./update-bank-account-dialog";
 import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface AssetCardProps {
   asset: Asset;
@@ -62,9 +67,18 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
         <CardHeader className="flex-row items-start justify-between gap-4 space-y-0 p-4">
             <div className="flex items-center gap-3 overflow-hidden">
               <AssetIcon type={asset.type} className="h-7 w-7 text-primary flex-shrink-0" />
-              <CardTitle className="text-lg font-headline truncate" title={asset.name}>
-                {asset.name}
-              </CardTitle>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <CardTitle className="text-lg font-headline truncate">
+                      {asset.name}
+                    </CardTitle>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{asset.name}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
                 <div className="flex flex-col items-end">
