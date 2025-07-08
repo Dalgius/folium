@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { Asset, AssetType } from '@/types';
-import { PlusCircle, BarChart2, SearchX, RefreshCw, LogOut } from 'lucide-react';
+import { PlusCircle, Leaf, SearchX, RefreshCw, LogOut } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { getQuote } from '@/services/finance.service';
 import { signOut } from 'firebase/auth';
@@ -30,13 +30,7 @@ export default function Home() {
     try {
       setIsLoading(true);
       const fetchedAssets = await getAssets();
-      const sortedAssets = fetchedAssets.sort((a, b) => {
-        if (a.purchaseDate && b.purchaseDate) {
-          return new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime();
-        }
-        return 0;
-      });
-      setAssets(sortedAssets);
+      setAssets(fetchedAssets);
     } catch (error: any) {
       console.error("Errore nel recupero degli asset:", error);
       toast({
@@ -175,9 +169,12 @@ export default function Home() {
       <main className="container mx-auto p-4 sm:p-6 lg:p-8">
         <header className="mb-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-             <div>
-                <h1 className="text-3xl font-bold text-primary font-headline tracking-tight">Folium</h1>
-                {user && <p className="text-sm text-muted-foreground">Bentornato, {user.email}</p>}
+             <div className="flex items-center gap-3">
+                <Leaf className="h-8 w-8 text-primary" />
+                <div>
+                  <h1 className="text-3xl font-bold text-primary font-headline tracking-tight">Folium</h1>
+                  {user && <p className="text-sm text-muted-foreground">Bentornato, {user.email}</p>}
+                </div>
             </div>
             <div className="flex items-center gap-2">
                 <Button variant="outline" onClick={handleRefreshAllAssets} disabled={isLoading || assets.length === 0}>
@@ -245,7 +242,7 @@ export default function Home() {
           </section>
         ) : (
           <div className="text-center py-20 px-6 border-2 border-dashed border-border rounded-lg">
-            <BarChart2 className="mx-auto h-12 w-12 text-muted-foreground" />
+            <Leaf className="mx-auto h-12 w-12 text-muted-foreground" />
             <h2 className="mt-4 text-xl font-semibold text-foreground">Il tuo portafoglio è vuoto</h2>
             <p className="mt-2 text-sm text-muted-foreground">Aggiungi il tuo primo asset per iniziare a tracciare i tuoi investimenti.</p>
             <div className="mt-6">
