@@ -6,7 +6,6 @@ import { formatCurrency, cn } from "@/lib/utils";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
@@ -26,8 +25,6 @@ import {
 import { AssetIcon, PerformanceIndicator } from "./asset-icons";
 import { Trash2, Pencil } from "lucide-react";
 import { UpdateAssetDialog } from "./update-asset-dialog";
-import { format, parseISO } from 'date-fns';
-import { it } from 'date-fns/locale';
 
 interface AssetCardProps {
   asset: Asset;
@@ -49,7 +46,6 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
         </div>
         <div className="flex-1">
           <CardTitle className="text-xl font-headline">{asset.name}</CardTitle>
-          <CardDescription>{asset.type} {asset.ticker && `(${asset.ticker})`}</CardDescription>
         </div>
       </CardHeader>
       <CardContent className="flex-grow space-y-4">
@@ -59,13 +55,6 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
             {formatCurrency(asset.currentValue, asset.currency)}
           </p>
         </div>
-         {asset.quantity && asset.purchasePrice && (
-            <div className="text-sm text-muted-foreground">
-                <p>Quantità: {asset.quantity}</p>
-                <p>P. Acq.: {formatCurrency(asset.purchasePrice, asset.currency)}</p>
-                {asset.purchaseDate && <p>Data Acq.: {format(parseISO(asset.purchaseDate), 'dd MMM yyyy', { locale: it })}</p>}
-            </div>
-        )}
         <div className="flex items-center justify-between rounded-lg bg-muted p-3">
           <div className="text-sm font-medium">Performance</div>
           <div className="flex items-center gap-2">
