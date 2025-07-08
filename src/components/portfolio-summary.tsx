@@ -260,7 +260,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
         <CardTitle>Riepilogo Portafoglio</CardTitle>
       </CardHeader>
       <CardContent className="grid grid-cols-4 gap-8 p-6 pt-0">
-        <div className="flex flex-col gap-4 col-span-3">
+        <div className="flex flex-col items-start gap-4 col-span-3">
             <h3 className="text-lg font-semibold font-headline">Andamento Titoli (Azioni & ETF)</h3>
             <div>
               <p className="text-sm text-muted-foreground">{hoverDate || 'Valore Corrente (EUR)'}</p>
@@ -284,10 +284,9 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
 
             {securitiesSummary && securitiesSummary.totalCurrentValue > 0 ? (
                 <>
-                    <ChartContainer config={areaChartConfig} className="h-[250px] w-full">
+                    <ChartContainer config={areaChartConfig} className="h-[250px] w-full justify-start">
                         <AreaChart 
-                        data={historicalChartData} 
-                        margin={{ top: 5, right: 0, left: -32, bottom: 0 }}
+                        data={historicalChartData}
                         onMouseMove={handleMouseMove}
                         onMouseLeave={handleMouseLeave}
                         >
@@ -319,14 +318,13 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                         </AreaChart>
                     </ChartContainer>
 
-                    <div className="flex justify-center gap-1 rounded-lg border bg-card p-1">
+                    <div className="flex justify-start gap-1 rounded-lg border bg-card p-1">
                         {timePeriods.map((period) => (
                             <Button
                                 key={period.value}
                                 variant={timePeriod === period.value ? 'default' : 'ghost'}
                                 size="sm"
                                 onClick={() => setTimePeriod(period.value)}
-                                className="flex-1"
                             >
                                 {period.label}
                             </Button>
@@ -342,7 +340,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
             )}
         </div>
 
-        <div className="flex flex-col gap-4 lg:col-span-1 lg:border-l lg:pl-8">
+        <div className="flex flex-col gap-4 col-span-1 border-l pl-8">
             <h3 className="text-lg font-semibold font-headline">Patrimonio Complessivo</h3>
             <div>
                 <p className="text-sm text-muted-foreground">Valore Totale (EUR)</p>
