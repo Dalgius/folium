@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Asset, AssetType } from '@/types';
+import { Asset } from '@/types';
 import { PlusCircle, BarChart2 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { getQuote } from '@/services/finance.service';
@@ -13,8 +13,7 @@ import { PortfolioSummary } from '@/components/portfolio-summary';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
-import type { AddAssetData } from '@/components/add-asset-dialog';
-import { getAssets, addAsset, updateAsset, deleteAsset } from '@/services/asset.service';
+import { getAssets, addAsset, updateAsset, deleteAsset, type AddableAsset } from '@/services/asset.service';
 
 export default function Home() {
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -42,27 +41,9 @@ export default function Home() {
     fetchAssets();
   }, []);
 
-  const handleAddAsset = async (data: AddAssetData) => {
-    const initialValue = data.quantity * data.purchasePrice;
-    
-    // We need the current price to set the initial currentValue
-    const quote = await getQuote(data.ticker);
-    const currentValue = quote ? quote.price * data.quantity : initialValue;
-    
-    const newAssetData = {
-      name: data.name,
-      type: data.type,
-      ticker: data.ticker,
-      quantity: data.quantity,
-      purchasePrice: data.purchasePrice,
-      purchaseDate: data.transactionDate.toISOString(),
-      currency: data.currency,
-      initialValue: initialValue,
-      currentValue: currentValue,
-    };
-
+  const handleAddAsset = async (asset: AddableAsset) => {
     try {
-      await addAsset(newAssetData);
+      await addAsset(asset);
       toast({ title: "Successo", description: "Asset aggiunto correttamente." });
       fetchAssets(); // Re-fetch assets to update the list
     } catch (error) {

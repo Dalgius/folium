@@ -1,3 +1,4 @@
+
 import { db } from '@/lib/firebase';
 import { Asset } from '@/types';
 import {
@@ -45,11 +46,18 @@ export const getAssets = async (): Promise<Asset[]> => {
 export type AddableAsset = Omit<Asset, 'id'>;
 
 export const addAsset = async (assetData: AddableAsset): Promise<Asset> => {
+    // Make a copy to avoid mutating the original object
+    const dataToAdd: { [key: string]: any } = { ...assetData };
+
+    // Ensure purchaseDate is a Date object for Firestore
+    dataToAdd.purchaseDate = assetData.purchaseDate ? new Date(assetData.purchaseDate) : new Date();
+
+    // Remove undefined fields to keep Firestore data clean
+    Object.keys(dataToAdd).forEach(key => dataToAdd[key] === undefined && delete dataToAdd[key]);
+
     const assetCollection = collection(db, 'assets');
-    const docRef = await addDoc(assetCollection, {
-        ...assetData,
-        purchaseDate: assetData.purchaseDate ? new Date(assetData.purchaseDate) : new Date(),
-    });
+    const docRef = await addDoc(assetCollection, dataToAdd);
+    
     return { id: docRef.id, ...assetData };
 };
 
