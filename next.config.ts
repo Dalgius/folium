@@ -15,10 +15,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-if (process.env.NODE_ENV === 'development') {
-  nextConfig.devServer = {
-    allowedDevOrigins: ['*.cloudworkstations.dev'],
-  };
-}
-
 export default nextConfig;
