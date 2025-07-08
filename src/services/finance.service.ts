@@ -39,15 +39,18 @@ export async function searchSecurities(query: string): Promise<SearchResult[]> {
   try {
     const results = await yahooFinance.search(query, { newsCount: 0 });
     
-    // Use the type guard in the filter to ensure type safety
-    return (results.quotes || [])
-      .filter(isEquityOrEtf)
-      .map(q => ({
-        ticker: q.symbol,
-        name: q.longname || q.shortname,
-        exchange: q.exchange,
-        type: q.quoteType
-      }));
+    // Use flatMap to filter and map in one step, which can be more robust for type inference.
+    return (results.quotes || []).flatMap((q): SearchResult[] => {
+      if (isEquityOrEtf(q)) {
+        return [{
+          ticker: q.symbol,
+          name: q.longname || q.shortname,
+          exchange: q.exchange,
+          type: q.quoteType
+        }];
+      }
+      return [];
+    });
   } catch (error) {
     console.error('Error searching securities:', error);
     // This can happen for various reasons, like network issues or API changes.
