@@ -10,14 +10,38 @@ export interface SearchResult {
   type: string;
 }
 
+// A more specific type for the quotes we are interested in from the search results.
+interface EquityOrEtfQuote {
+  symbol: string;
+  longname?: string;
+  shortname?: string;
+  exchange: string;
+  quoteType: 'EQUITY' | 'ETF';
+  isYahooFinance: true;
+}
+
+// Type guard to check if a quote from yahooFinance.search is the type we want.
+function isEquityOrEtf(quote: any): quote is EquityOrEtfQuote {
+  return (
+    quote &&
+    quote.isYahooFinance === true &&
+    (quote.quoteType === 'EQUITY' || quote.quoteType === 'ETF') &&
+    typeof quote.symbol === 'string' &&
+    !quote.symbol.includes('=')
+  );
+}
+
+
 export async function searchSecurities(query: string): Promise<SearchResult[]> {
   if (!query || query.length < 2) {
     return [];
   }
   try {
     const results = await yahooFinance.search(query, { newsCount: 0 });
+    
+    // Use the type guard in the filter to ensure type safety
     return (results.quotes || [])
-      .filter(q => q.isYahooFinance && (q.quoteType === 'EQUITY' || q.quoteType === 'ETF') && q.symbol && !q.symbol.includes('='))
+      .filter(isEquityOrEtf)
       .map(q => ({
         ticker: q.symbol,
         name: q.longname || q.shortname,
