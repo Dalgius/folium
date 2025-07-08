@@ -341,47 +341,51 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
         </div>
 
         <div className="flex flex-col gap-4 col-span-1 lg:border-l lg:pl-8 items-start">
-            <h3 className="text-lg font-semibold font-headline">Patrimonio Complessivo</h3>
-            <div>
-                <p className="text-sm text-muted-foreground">Valore Totale (EUR)</p>
-                 <p className="text-3xl font-bold text-primary">
-                    {formatCurrency(totalPatrimony, 'EUR')}
-                </p>
-            </div>
-             {pieData.length > 0 ? (
-                <ChartContainer config={pieChartConfig} className="h-[200px] w-full">
-                    <PieChart>
-                        <ChartTooltip
-                            cursor={false}
-                            content={<ChartTooltipContent
-                                hideLabel
-                                formatter={(value, name, props) => (
-                                    <div className="flex flex-col items-start">
-                                        <span>{props.payload.label}</span>
-                                        <span className="font-bold">{formatCurrency(value as number, 'EUR')}</span>
-                                    </div>
-                                )}
-                            />}
-                        />
-                        <Pie
-                            data={pieData}
-                            dataKey="value"
-                            nameKey="name"
-                            cx="50%"
-                            cy="50%"
-                            innerRadius="60%"
-                            outerRadius="95%"
-                            paddingAngle={2}
-                            label={false}
-                        />
-                    </PieChart>
-                </ChartContainer>
-             ) : (
-                <div className="flex flex-col items-center justify-center text-center">
-                    <Wallet className="h-10 w-10 text-muted-foreground" />
-                    <p className="mt-2 text-sm font-medium">Patrimonio non calcolabile</p>
+            <div className="flex-shrink-0">
+                <h3 className="text-lg font-semibold font-headline">Patrimonio Complessivo</h3>
+                <div>
+                    <p className="text-sm text-muted-foreground">Valore Totale (EUR)</p>
+                     <p className="text-3xl font-bold text-primary">
+                        {formatCurrency(totalPatrimony, 'EUR')}
+                    </p>
                 </div>
-             )}
+            </div>
+            <div className="flex-1 w-full flex items-center justify-center min-h-0">
+                 {pieData.length > 0 ? (
+                    <ChartContainer config={pieChartConfig} className="w-full h-full">
+                        <PieChart>
+                            <ChartTooltip
+                                cursor={false}
+                                content={<ChartTooltipContent
+                                    hideLabel
+                                    formatter={(value, name, props) => (
+                                        <div className="flex flex-col items-start">
+                                            <span>{props.payload.label}</span>
+                                            <span className="font-bold">{formatCurrency(value as number, 'EUR')}</span>
+                                        </div>
+                                    )}
+                                />}
+                            />
+                            <Pie
+                                data={pieData}
+                                dataKey="value"
+                                nameKey="name"
+                                cx="50%"
+                                cy="50%"
+                                innerRadius="45%"
+                                outerRadius="90%"
+                                paddingAngle={1}
+                                label={false}
+                            />
+                        </PieChart>
+                    </ChartContainer>
+                 ) : (
+                    <div className="flex h-full flex-col items-center justify-center text-center">
+                        <Wallet className="h-10 w-10 text-muted-foreground" />
+                        <p className="mt-2 text-sm font-medium">Patrimonio non calcolabile</p>
+                    </div>
+                 )}
+            </div>
         </div>
       </CardContent>
     </Card>
