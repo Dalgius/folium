@@ -10,7 +10,6 @@ import {
   doc,
   Timestamp,
   query,
-  orderBy,
   where,
   DocumentSnapshot,
   QueryDocumentSnapshot,
@@ -43,7 +42,7 @@ export const getAssets = async (): Promise<Asset[]> => {
     return [];
   }
   const assetsCollection = collection(db, 'assets');
-  const q = query(assetsCollection, where("userId", "==", user.uid), orderBy("purchaseDate", "desc"));
+  const q = query(assetsCollection, where("userId", "==", user.uid));
   const assetSnapshot = await getDocs(q);
   const assetList = assetSnapshot.docs.map(fromFirestore);
   return assetList;

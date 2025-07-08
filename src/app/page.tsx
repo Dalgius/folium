@@ -26,15 +26,23 @@ export default function Home() {
   const { toast } = useToast();
 
   const fetchAssets = async () => {
+    if (!user) return;
     try {
       setIsLoading(true);
       const fetchedAssets = await getAssets();
-      setAssets(fetchedAssets);
-    } catch (error) {
+      const sortedAssets = fetchedAssets.sort((a, b) => {
+        const dateA = a.purchaseDate ? new Date(a.purchaseDate).getTime() : 0;
+        const dateB = b.purchaseDate ? new Date(b.purchaseDate).getTime() : 0;
+        return dateB - dateA;
+      });
+      setAssets(sortedAssets);
+    } catch (error: any) {
       console.error("Errore nel recupero degli asset:", error);
       toast({
         title: "Errore",
-        description: "Impossibile caricare i dati del portafoglio. Assicurati di aver configurato correttamente Firebase.",
+        description: error.message.includes("indexes?create_composite")
+          ? "Indice Firestore mancante. Crealo dalla console di Firebase per ottimizzare le query."
+          : "Impossibile caricare i dati del portafoglio.",
         variant: "destructive",
       });
     } finally {
