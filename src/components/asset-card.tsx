@@ -103,16 +103,16 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
                 {formatCurrency(asset.currentValue, asset.currency)}
               </div>
             </div>
-            <div className="text-right flex flex-col items-end min-h-[36px] justify-end">
+            <div className="text-right flex flex-col items-end min-h-[44px] justify-end">
               {(asset.type === 'Azione' || asset.type === 'ETF') && asset.dailyChange != null && asset.dailyChangePercent != null && (
-                <>
+                <div className="bg-muted px-2 py-1 rounded-md flex flex-col items-end">
                   <span className={cn("text-sm font-semibold", dailyPerformanceColor)}>
                       {(dailyGainPercent >= 0 ? '+' : '')}{dailyGainPercent.toFixed(2)}%
                   </span>
                   <span className={cn("text-xs font-medium", dailyPerformanceColor)}>
-                    {(dailyGainAbsolute >= 0 ? '+' : '')}{formatCurrency(dailyGainAbsolute, asset.currency)} (Oggi)
+                    {(dailyGainAbsolute >= 0 ? '+' : '')}{formatCurrency(dailyGainAbsolute, asset.currency)}
                   </span>
-                </>
+                </div>
               )}
             </div>
           </div>
