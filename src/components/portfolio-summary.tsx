@@ -350,7 +350,6 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                 </p>
             </div>
              <div className="flex flex-col items-center">
-                 <h4 className="font-semibold text-center mb-4">Composizione</h4>
                  {pieData.length > 0 ? (
                     <ChartContainer config={pieChartConfig} className="h-[160px] w-full">
                         <PieChart>
