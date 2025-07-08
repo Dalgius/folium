@@ -24,19 +24,18 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { AssetIcon, PerformanceIndicator } from "./asset-icons";
-import { RefreshCw, Trash2, Pencil } from "lucide-react";
+import { Trash2, Pencil } from "lucide-react";
 import { UpdateAssetDialog } from "./update-asset-dialog";
 import { format, parseISO } from 'date-fns';
 import { it } from 'date-fns/locale';
 
 interface AssetCardProps {
   asset: Asset;
-  onRefresh: (id: string) => void;
   onDelete: (id: string) => void;
   onUpdate: (id: string, updatedData: Partial<Omit<Asset, 'id' | 'type' | 'name' | 'ticker'>>) => void;
 }
 
-export function AssetCard({ asset, onRefresh, onDelete, onUpdate }: AssetCardProps) {
+export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
   const performance = asset.initialValue !== 0 
     ? ((asset.currentValue - asset.initialValue) / asset.initialValue) * 100 
     : 0;
@@ -86,12 +85,6 @@ export function AssetCard({ asset, onRefresh, onDelete, onUpdate }: AssetCardPro
         </div>
       </CardContent>
       <CardFooter className="flex justify-end gap-2">
-        {(asset.type === 'Azione' || asset.type === 'ETF') && (
-          <Button variant="outline" size="sm" onClick={() => onRefresh(asset.id)}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Aggiorna
-          </Button>
-        )}
         {asset.type !== 'Conto Bancario' && (
             <UpdateAssetDialog asset={asset} onAssetUpdate={onUpdate}>
                 <Button variant="outline" size="sm">

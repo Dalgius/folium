@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { Asset, AssetType } from '@/types';
-import { PlusCircle, BarChart2, SearchX } from 'lucide-react';
+import { PlusCircle, BarChart2, SearchX, RefreshCw } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { getQuote } from '@/services/finance.service';
 
@@ -88,30 +88,29 @@ export default function Home() {
     }
   };
   
-  const handleRefreshAsset = async (id: string) => {
-    const asset = assets.find(a => a.id === id);
-    if (!asset || !asset.ticker) {
-      toast({ title: "Errore", description: "Ticker non trovato per questo asset.", variant: "destructive" });
-      return;
-    }
+  const handleRefreshAllAssets = async () => {
+    toast({ title: "In corso...", description: "Aggiornamento dei valori di mercato in corso." });
+    try {
+        const assetsToRefresh = assets.filter(a => a.type === 'Azione' || a.type === 'ETF');
+        const updatePromises = assetsToRefresh.map(async (asset) => {
+            if (!asset.ticker || !asset.quantity) return;
+            const quote = await getQuote(asset.ticker);
+            if (quote?.price) {
+                const newCurrentValue = quote.price * asset.quantity;
+                return updateAsset(asset.id, { currentValue: newCurrentValue });
+            }
+        });
+        
+        await Promise.all(updatePromises);
 
-    if (asset.type === 'Azione' || asset.type === 'ETF') {
-      try {
-        const quote = await getQuote(asset.ticker);
-        if (quote?.price && asset.quantity) {
-          const newCurrentValue = quote.price * asset.quantity;
-          await updateAsset(id, { currentValue: newCurrentValue });
-          toast({ title: "Aggiornato", description: `Valore di ${asset.name} aggiornato da Yahoo Finance.` });
-          fetchAssets();
-        } else {
-          toast({ title: "Errore", description: `Impossibile recuperare la quotazione per ${asset.ticker}.`, variant: "destructive" });
-        }
-      } catch (error) {
-        console.error("Errore nell'aggiornamento dell'asset:", error);
-        toast({ title: "Errore", description: "Impossibile aggiornare il valore dell'asset.", variant: "destructive" });
-      }
+        toast({ title: "Successo", description: "Tutti gli asset sono stati aggiornati con i valori di mercato." });
+        fetchAssets();
+    } catch (error) {
+        console.error("Errore durante l'aggiornamento di tutti gli asset:", error);
+        toast({ title: "Errore", description: "Impossibile aggiornare i valori degli asset.", variant: "destructive" });
     }
   };
+
 
   const handleDeleteAsset = async (id: string) => {
     try {
@@ -160,11 +159,16 @@ export default function Home() {
         <header className="mb-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
             <h1 className="text-3xl font-bold text-primary font-headline tracking-tight">Portfolio Pulse</h1>
-            <AddAssetDialog onAssetAdd={handleAddAsset}>
-              <Button>
-                <PlusCircle className="mr-2 h-4 w-4" /> Aggiungi Asset
-              </Button>
-            </AddAssetDialog>
+            <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={handleRefreshAllAssets} disabled={isLoading}>
+                    <RefreshCw className="mr-2 h-4 w-4" /> Aggiorna Tutto
+                </Button>
+                <AddAssetDialog onAssetAdd={handleAddAsset}>
+                <Button>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Aggiungi Asset
+                </Button>
+                </AddAssetDialog>
+            </div>
           </div>
           <PortfolioSummary assets={filteredAssets} />
         </header>
@@ -201,7 +205,6 @@ export default function Home() {
                     <AssetCard
                     key={asset.id}
                     asset={asset}
-                    onRefresh={handleRefreshAsset}
                     onDelete={handleDeleteAsset}
                     onUpdate={handleUpdateAsset}
                     />
