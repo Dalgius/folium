@@ -6,14 +6,13 @@ import { formatCurrency, cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Pie, PieChart, Legend } from "recharts";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Pie, PieChart } from "recharts";
 import { useState, useEffect } from "react";
 import { getExchangeRate, getHistoricalData, HistoricalDataPoint } from "@/services/finance.service";
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Wallet } from "lucide-react";
 import { format, subMonths, subYears, startOfYear, parseISO, subDays } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { Button } from "./ui/button";
-
 
 interface PortfolioSummaryProps {
   assets: Asset[];
@@ -21,12 +20,12 @@ interface PortfolioSummaryProps {
 
 type TimePeriod = '1M' | '6M' | '1Y' | 'YTD' | 'MAX';
 
-const timePeriods: { label: string; value: TimePeriod, days: number }[] = [
-    { label: '1M', value: '1M', days: 30 },
-    { label: '6M', value: '6M', days: 180 },
-    { label: '1A', value: '1Y', days: 365 },
-    { label: 'YTD', value: 'YTD', days: 0 }, // Special case
-    { label: 'Max', value: 'MAX', days: 9999 },
+const timePeriods: { label: string; value: TimePeriod }[] = [
+    { label: '1M', value: '1M' },
+    { label: '6M', value: '6M' },
+    { label: '1A', value: '1Y' },
+    { label: 'YTD', value: 'YTD' },
+    { label: 'Max', value: 'MAX' },
 ];
 
 const areaChartConfig = {
@@ -44,11 +43,11 @@ const pieChartConfig = assetTypes.reduce((acc, type, index) => {
     return acc;
 }, {} as ChartConfig);
 
-
 export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
   const [areaChartData, setAreaChartData] = useState<any[]>([]);
   const [pieData, setPieData] = useState<any[]>([]);
-  const [summary, setSummary] = useState<{ totalInitialValue: number; totalCurrentValue: number; } | null>(null);
+  const [securitiesSummary, setSecuritiesSummary] = useState<{ totalInitialValue: number; totalCurrentValue: number; } | null>(null);
+  const [totalPatrimony, setTotalPatrimony] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('1Y');
   
@@ -56,96 +55,39 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
   const [hoverDate, setHoverDate] = useState<string | null>(null);
 
   useEffect(() => {
-    const calculateHistoricalPortfolio = async () => {
+    const calculatePortfolioSummary = async () => {
       setIsLoading(true);
-      const today = new Date();
-
+      
       if (assets.length === 0) {
         setAreaChartData([]);
         setPieData([]);
-        setSummary({ totalInitialValue: 0, totalCurrentValue: 0 });
+        setSecuritiesSummary({ totalInitialValue: 0, totalCurrentValue: 0 });
+        setTotalPatrimony(0);
         setIsLoading(false);
         return;
       }
-
-      let startDate: Date;
-      switch(timePeriod) {
-          case '1M': startDate = subMonths(today, 1); break;
-          case '6M': startDate = subMonths(today, 6); break;
-          case '1Y': startDate = subYears(today, 1); break;
-          case 'YTD': startDate = startOfYear(today); break;
-          case 'MAX':
-          default:
-              const firstPurchaseDate = assets.reduce((earliest, asset) => {
-                  if (!asset.purchaseDate) return earliest;
-                  const purchaseD = parseISO(asset.purchaseDate);
-                  return purchaseD < earliest ? purchaseD : earliest;
-              }, today);
-              startDate = firstPurchaseDate < today ? firstPurchaseDate : subDays(today, 1);
-              break;
-      }
       
-      const startDateString = format(startDate, 'yyyy-MM-dd');
-
-      const stockAndEtfAssets = assets.filter(a => a.ticker && a.quantity);
-      const uniqueTickers = [...new Set(stockAndEtfAssets.map(a => a.ticker!))];
+      const securitiesAssets = assets.filter(a => a.type === 'Azione' || a.type === 'ETF');
       const uniqueCurrencies = [...new Set(assets.map(a => a.currency))];
 
-      const [historicalDataResults, exchangeRateResults] = await Promise.all([
-          Promise.all(uniqueTickers.map(ticker => getHistoricalData(ticker, startDateString))),
-          Promise.all(uniqueCurrencies.map(currency => currency === 'EUR' ? Promise.resolve({currency, rate: 1}) : getExchangeRate(currency, 'EUR').then(rate => ({ currency, rate: rate || 1 }))))
-      ]);
+      const exchangeRateResults = await Promise.all(
+        uniqueCurrencies.map(currency => currency === 'EUR' 
+          ? Promise.resolve({ currency, rate: 1 }) 
+          : getExchangeRate(currency, 'EUR').then(rate => ({ currency, rate: rate || 1 }))
+        )
+      );
+      const rates = exchangeRateResults.reduce((acc, { currency, rate }) => {
+        acc[currency] = rate;
+        return acc;
+      }, {} as Record<string, number>);
 
-      const rates = exchangeRateResults.reduce((acc, {currency, rate}) => { acc[currency] = rate; return acc; }, {} as Record<string, number>);
+      // --- Calculate Total Patrimony and Pie Chart Data ---
+      const totalValueEur = assets.reduce((sum, asset) => {
+          const rate = rates[asset.currency] || 1;
+          return sum + (asset.currentValue * rate);
+      }, 0);
+      setTotalPatrimony(totalValueEur);
       
-      const priceHistoryByTicker: Record<string, HistoricalDataPoint[]> = {};
-      uniqueTickers.forEach((ticker, i) => {
-          priceHistoryByTicker[ticker] = historicalDataResults[i];
-      });
-
-      const dateSet = new Set<string>();
-      Object.values(priceHistoryByTicker).forEach(history => history.forEach(p => dateSet.add(format(p.date, 'yyyy-MM-dd'))));
-      
-      for (let d = new Date(startDate); d <= today; d = subDays(d, -1)) {
-        if (d >= startDate) dateSet.add(format(d, 'yyyy-MM-dd'));
-      }
-      
-      const sortedDates = Array.from(dateSet).filter(d => parseISO(d) >= startDate).sort();
-      const lastKnownPrices: Record<string, number> = {};
-
-      const finalAreaChartData = sortedDates.map(dateStr => {
-          const currentDate = parseISO(dateStr);
-          let dailyValueEUR = 0;
-
-          for (const asset of assets) {
-              const assetPurchaseDate = asset.purchaseDate ? parseISO(asset.purchaseDate) : new Date(0);
-
-              if (currentDate >= assetPurchaseDate) {
-                  const rate = rates[asset.currency] || 1;
-                  let assetValue = 0;
-
-                  if (asset.type === 'Conto Bancario') {
-                      assetValue = asset.currentValue;
-                  } else if (asset.ticker && asset.quantity) {
-                      const historyForTicker = priceHistoryByTicker[asset.ticker];
-                      const pricePoint = historyForTicker.find(p => format(p.date, 'yyyy-MM-dd') === dateStr);
-                      
-                      if (pricePoint) {
-                          lastKnownPrices[asset.ticker] = pricePoint.close;
-                      }
-                      
-                      const price = lastKnownPrices[asset.ticker] || asset.purchasePrice || 0;
-                      assetValue = price * asset.quantity;
-                  }
-                  dailyValueEUR += assetValue * rate;
-              }
-          }
-          return { date: dateStr, value: parseFloat(dailyValueEUR.toFixed(2)) };
-      }).filter(d => d.value > 0);
-
-      setAreaChartData(finalAreaChartData);
-
-      // Calculate Pie Chart Data
       const allocation = assets.reduce((acc, asset) => {
         const rate = rates[asset.currency] || 1;
         const valueInEur = asset.currentValue * rate;
@@ -160,32 +102,86 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
       })).filter(d => d.value > 0);
       setPieData(finalPieData);
 
-      // --- Robust Summary Calculation ---
-      if (finalAreaChartData.length > 0) {
-        const firstValue = finalAreaChartData[0].value;
-        const lastValue = finalAreaChartData[finalAreaChartData.length - 1].value;
-        setSummary({ totalInitialValue: firstValue, totalCurrentValue: lastValue });
-      } else {
-        // Fallback if historical data is empty (e.g., only bank accounts)
-        const totalCurrentValue = assets.reduce((sum, asset) => {
-            const rate = rates[asset.currency] || 1;
-            return sum + (asset.currentValue * rate);
-        }, 0);
-        setSummary({ totalInitialValue: totalCurrentValue, totalCurrentValue: totalCurrentValue });
-        
-        // Create a flat line chart if there's a value
-        if (totalCurrentValue > 0) {
-            setAreaChartData([
-                { date: format(subDays(today,1), 'yyyy-MM-dd'), value: totalCurrentValue },
-                { date: format(today, 'yyyy-MM-dd'), value: totalCurrentValue }
-            ]);
+      // --- Calculate Securities Historical Performance ---
+      if (securitiesAssets.length > 0) {
+        const today = new Date();
+        let startDate: Date;
+        switch(timePeriod) {
+            case '1M': startDate = subMonths(today, 1); break;
+            case '6M': startDate = subMonths(today, 6); break;
+            case '1Y': startDate = subYears(today, 1); break;
+            case 'YTD': startDate = startOfYear(today); break;
+            case 'MAX':
+            default:
+                const firstPurchaseDate = securitiesAssets.reduce((earliest, asset) => {
+                    if (!asset.purchaseDate) return earliest;
+                    const purchaseD = parseISO(asset.purchaseDate);
+                    return purchaseD < earliest ? purchaseD : earliest;
+                }, today);
+                startDate = firstPurchaseDate < today ? firstPurchaseDate : subDays(today, 1);
+                break;
         }
+        
+        const startDateString = format(startDate, 'yyyy-MM-dd');
+        const uniqueTickers = [...new Set(securitiesAssets.map(a => a.ticker!))];
+        const historicalDataResults = await Promise.all(uniqueTickers.map(ticker => getHistoricalData(ticker, startDateString)));
+        
+        const priceHistoryByTicker: Record<string, HistoricalDataPoint[]> = {};
+        uniqueTickers.forEach((ticker, i) => { priceHistoryByTicker[ticker] = historicalDataResults[i]; });
+
+        const dateSet = new Set<string>();
+        Object.values(priceHistoryByTicker).forEach(history => history.forEach(p => dateSet.add(format(p.date, 'yyyy-MM-dd'))));
+        for (let d = new Date(startDate); d <= today; d = subDays(d, -1)) {
+          if (d >= startDate) dateSet.add(format(d, 'yyyy-MM-dd'));
+        }
+        
+        const sortedDates = Array.from(dateSet).filter(d => parseISO(d) >= startDate).sort();
+        const lastKnownPrices: Record<string, number> = {};
+
+        const finalAreaChartData = sortedDates.map(dateStr => {
+            const currentDate = parseISO(dateStr);
+            let dailyValueEUR = 0;
+
+            for (const asset of securitiesAssets) {
+                const assetPurchaseDate = asset.purchaseDate ? parseISO(asset.purchaseDate) : new Date(0);
+                if (currentDate >= assetPurchaseDate && asset.ticker && asset.quantity) {
+                    const rate = rates[asset.currency] || 1;
+                    const historyForTicker = priceHistoryByTicker[asset.ticker];
+                    const pricePoint = historyForTicker.find(p => format(p.date, 'yyyy-MM-dd') === dateStr);
+                    
+                    if (pricePoint) lastKnownPrices[asset.ticker] = pricePoint.close;
+                    const price = lastKnownPrices[asset.ticker] || asset.purchasePrice || 0;
+                    dailyValueEUR += (price * asset.quantity) * rate;
+                }
+            }
+            return { date: dateStr, value: parseFloat(dailyValueEUR.toFixed(2)) };
+        }).filter(d => d.value > 0);
+
+        setAreaChartData(finalAreaChartData);
+
+        if (finalAreaChartData.length > 0) {
+          const firstValue = finalAreaChartData[0].value;
+          const lastValue = finalAreaChartData[finalAreaChartData.length - 1].value;
+          setSecuritiesSummary({ totalInitialValue: firstValue, totalCurrentValue: lastValue });
+        } else {
+           const securitiesCurrentValue = securitiesAssets.reduce((sum, asset) => sum + (asset.currentValue * (rates[asset.currency] || 1)), 0);
+           setSecuritiesSummary({ totalInitialValue: securitiesCurrentValue, totalCurrentValue: securitiesCurrentValue });
+           if (securitiesCurrentValue > 0) {
+              setAreaChartData([
+                  { date: format(subDays(today,1), 'yyyy-MM-dd'), value: securitiesCurrentValue },
+                  { date: format(today, 'yyyy-MM-dd'), value: securitiesCurrentValue }
+              ]);
+           }
+        }
+      } else {
+        setAreaChartData([]);
+        setSecuritiesSummary({ totalInitialValue: 0, totalCurrentValue: 0 });
       }
 
       setIsLoading(false);
     };
 
-    calculateHistoricalPortfolio();
+    calculatePortfolioSummary();
   }, [assets, timePeriod]);
   
   const handleMouseMove = (e: any) => {
@@ -200,18 +196,18 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
   };
 
 
-  const displayValue = hoverValue ?? summary?.totalCurrentValue ?? 0;
-  const initialValue = summary?.totalInitialValue ?? 0;
+  const securitiesDisplayValue = hoverValue ?? securitiesSummary?.totalCurrentValue ?? 0;
+  const securitiesInitialValue = securitiesSummary?.totalInitialValue ?? 0;
   
-  const overallPerformance = initialValue !== 0 ? ((displayValue - initialValue) / initialValue) * 100 : 0;
-  const valueChange = displayValue - initialValue;
+  const securitiesPerformance = securitiesInitialValue !== 0 ? ((securitiesDisplayValue - securitiesInitialValue) / securitiesInitialValue) * 100 : 0;
+  const securitiesValueChange = securitiesDisplayValue - securitiesInitialValue;
 
-  const PerformanceIcon = overallPerformance > 0.01 ? TrendingUp : overallPerformance < -0.01 ? TrendingDown : Minus;
+  const PerformanceIcon = securitiesPerformance > 0.01 ? TrendingUp : securitiesPerformance < -0.01 ? TrendingDown : Minus;
   
   const performanceColor = cn({
-    "text-green-600": overallPerformance > 0.01,
-    "text-red-600": overallPerformance < -0.01,
-    "text-muted-foreground": Math.abs(overallPerformance) <= 0.01
+    "text-green-600": securitiesPerformance > 0.01,
+    "text-red-600": securitiesPerformance < -0.01,
+    "text-muted-foreground": Math.abs(securitiesPerformance) <= 0.01
   });
 
   if (isLoading) {
@@ -248,105 +244,138 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
     <Card>
       <CardHeader>
         <CardTitle>Riepilogo Portafoglio</CardTitle>
-        <CardDescription>Andamento del tuo portafoglio in EUR ({timePeriods.find(p=>p.value === timePeriod)?.label}).</CardDescription>
+        <CardDescription>Una visione d'insieme del tuo patrimonio e delle performance dei tuoi investimenti.</CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-6">
-        <div>
-          <p className="text-sm text-muted-foreground">{hoverDate || 'Valore Totale (EUR)'}</p>
-          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
-            <p className="text-4xl font-bold text-primary font-headline">
-              {formatCurrency(displayValue, 'EUR')}
-            </p>
-            <div className="flex items-center gap-2">
-              <PerformanceIcon className={cn("h-6 w-6", performanceColor)} />
-              <div className="flex flex-wrap items-baseline gap-x-2">
-                  <p className={cn("text-2xl font-bold", performanceColor)}>
-                      {overallPerformance.toFixed(2)}%
-                  </p>
-                  <p className={cn("text-sm font-medium", performanceColor)}>
-                      ({valueChange >= 0 ? '+' : ''}{formatCurrency(valueChange, 'EUR')})
-                  </p>
+      <CardContent className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Left Column: Securities Performance */}
+        <div className="flex flex-col gap-4">
+            <h3 className="text-lg font-semibold font-headline">Andamento Titoli (Azioni & ETF)</h3>
+            <div>
+              <p className="text-sm text-muted-foreground">{hoverDate || 'Valore Corrente (EUR)'}</p>
+              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
+                <p className="text-3xl font-bold text-primary">
+                  {formatCurrency(securitiesDisplayValue, 'EUR')}
+                </p>
+                <div className="flex items-center gap-2">
+                  <PerformanceIcon className={cn("h-5 w-5", performanceColor)} />
+                  <div className="flex flex-wrap items-baseline gap-x-2">
+                      <p className={cn("text-xl font-bold", performanceColor)}>
+                          {securitiesPerformance.toFixed(2)}%
+                      </p>
+                      <p className={cn("text-sm font-medium", performanceColor)}>
+                          ({securitiesValueChange >= 0 ? '+' : ''}{formatCurrency(securitiesValueChange, 'EUR')})
+                      </p>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-            <div className="lg:col-span-3 flex flex-col gap-4">
-                <ChartContainer config={areaChartConfig} className="h-[200px] w-full">
-                    <AreaChart 
-                      data={areaChartData} 
-                      margin={{ top: 5, right: 10, left: 10, bottom: 0 }}
-                      onMouseMove={handleMouseMove}
-                      onMouseLeave={handleMouseLeave}
-                    >
-                        <defs>
-                            <linearGradient id="fillValue" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="var(--color-value)" stopOpacity={0.8}/>
-                                <stop offset="95%" stopColor="var(--color-value)" stopOpacity={0.1}/>
-                            </linearGradient>
-                        </defs>
-                        <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                        <XAxis dataKey="date" tickLine={false} axisLine={false} tick={false} />
-                        <YAxis tickLine={false} axisLine={false} tick={false} domain={['dataMin - (dataMax-dataMin)*0.1', 'dataMax + (dataMax-dataMin)*0.1']} />
-                        <ChartTooltip
-                            cursor={true}
-                            content={<ChartTooltipContent
-                                formatter={(value) => formatCurrency(value as number, 'EUR')}
-                                labelFormatter={(label) => format(parseISO(label), "eeee, d MMMM yyyy", { locale: it })}
-                                indicator="dot"
-                            />}
-                        />
-                        <Area
-                            dataKey="value"
-                            type="natural"
-                            fill="url(#fillValue)"
-                            stroke="var(--color-value)"
-                            strokeWidth={2}
-                            dot={false}
-                        />
-                    </AreaChart>
-                </ChartContainer>
 
-                <div className="flex justify-center gap-1 rounded-lg border bg-card p-1">
-                    {timePeriods.map((period) => (
-                        <Button
-                            key={period.value}
-                            variant={timePeriod === period.value ? 'default' : 'ghost'}
-                            size="sm"
-                            onClick={() => setTimePeriod(period.value)}
-                            className="flex-1"
+            {securitiesSummary && securitiesSummary.totalCurrentValue > 0 ? (
+                <>
+                    <ChartContainer config={areaChartConfig} className="h-[150px] w-full">
+                        <AreaChart 
+                        data={areaChartData} 
+                        margin={{ top: 5, right: 10, left: 10, bottom: 0 }}
+                        onMouseMove={handleMouseMove}
+                        onMouseLeave={handleMouseLeave}
                         >
-                            {period.label}
-                        </Button>
-                    ))}
+                            <defs>
+                                <linearGradient id="fillValue" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="var(--color-value)" stopOpacity={0.8}/>
+                                    <stop offset="95%" stopColor="var(--color-value)" stopOpacity={0.1}/>
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                            <XAxis dataKey="date" tickLine={false} axisLine={false} tick={false} />
+                            <YAxis tickLine={false} axisLine={false} tick={false} domain={['dataMin - (dataMax-dataMin)*0.1', 'dataMax + (dataMax-dataMin)*0.1']} />
+                            <ChartTooltip
+                                cursor={true}
+                                content={<ChartTooltipContent
+                                    formatter={(value) => formatCurrency(value as number, 'EUR')}
+                                    labelFormatter={(label) => format(parseISO(label), "eeee, d MMMM yyyy", { locale: it })}
+                                    indicator="dot"
+                                />}
+                            />
+                            <Area
+                                dataKey="value"
+                                type="natural"
+                                fill="url(#fillValue)"
+                                stroke="var(--color-value)"
+                                strokeWidth={2}
+                                dot={false}
+                            />
+                        </AreaChart>
+                    </ChartContainer>
+
+                    <div className="flex justify-center gap-1 rounded-lg border bg-card p-1">
+                        {timePeriods.map((period) => (
+                            <Button
+                                key={period.value}
+                                variant={timePeriod === period.value ? 'default' : 'ghost'}
+                                size="sm"
+                                onClick={() => setTimePeriod(period.value)}
+                                className="flex-1"
+                            >
+                                {period.label}
+                            </Button>
+                        ))}
+                    </div>
+                </>
+            ) : (
+                <div className="flex flex-col items-center justify-center h-[214px] text-center border-2 border-dashed rounded-lg p-4">
+                     <TrendingUp className="h-10 w-10 text-muted-foreground" />
+                     <p className="mt-2 text-sm font-medium">Nessun titolo nel portafoglio</p>
+                     <p className="text-xs text-muted-foreground">Aggiungi azioni o ETF per vederne l'andamento.</p>
                 </div>
+            )}
+        </div>
+
+        {/* Right Column: Total Patrimony */}
+        <div className="flex flex-col gap-4 lg:border-l lg:pl-8">
+            <h3 className="text-lg font-semibold font-headline">Patrimonio Complessivo</h3>
+            <div>
+                <p className="text-sm text-muted-foreground">Valore Totale (EUR)</p>
+                 <p className="text-3xl font-bold text-primary">
+                    {formatCurrency(totalPatrimony, 'EUR')}
+                </p>
             </div>
-            <div className="lg:col-span-2 flex flex-col gap-4 items-center">
-                 <h3 className="font-semibold text-center">Composizione</h3>
-                 <ChartContainer config={pieChartConfig} className="h-[160px] w-full">
-                    <PieChart>
-                        <ChartTooltip
-                            cursor={false}
-                            content={<ChartTooltipContent
-                                hideLabel
-                                formatter={(value) => formatCurrency(value as number, 'EUR')}
-                             />}
-                        />
-                         <Pie
-                            data={pieData}
-                            dataKey="value"
-                            nameKey="name"
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={40}
-                            outerRadius={60}
-                            paddingAngle={2}
-                            label={false}
-                         />
-                        <ChartLegend content={<ChartLegendContent nameKey="name" />} />
-                    </PieChart>
-                 </ChartContainer>
+             <div className="flex flex-col gap-4 items-center flex-grow justify-center">
+                 <h4 className="font-semibold text-center">Composizione</h4>
+                 {pieData.length > 0 ? (
+                    <ChartContainer config={pieChartConfig} className="h-[160px] w-full">
+                        <PieChart>
+                            <ChartTooltip
+                                cursor={false}
+                                content={<ChartTooltipContent
+                                    hideLabel
+                                    formatter={(value, name) => (
+                                        <div className="flex flex-col items-start">
+                                            <span>{name}</span>
+                                            <span className="font-bold">{formatCurrency(value as number, 'EUR')}</span>
+                                        </div>
+                                    )}
+                                />}
+                            />
+                            <Pie
+                                data={pieData}
+                                dataKey="value"
+                                nameKey="name"
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={50}
+                                outerRadius={70}
+                                paddingAngle={2}
+                                label={false}
+                            />
+                            <ChartLegend content={<ChartLegendContent nameKey="name" />} />
+                        </PieChart>
+                    </ChartContainer>
+                 ) : (
+                    <div className="flex flex-col items-center justify-center text-center">
+                        <Wallet className="h-10 w-10 text-muted-foreground" />
+                        <p className="mt-2 text-sm font-medium">Patrimonio non calcolabile</p>
+                    </div>
+                 )}
             </div>
         </div>
       </CardContent>
