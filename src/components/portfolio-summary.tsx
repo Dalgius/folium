@@ -260,8 +260,8 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
       <CardHeader className="p-6">
         <CardTitle>Riepilogo Portafoglio</CardTitle>
       </CardHeader>
-      <CardContent className="grid grid-cols-1 lg:grid-cols-4 gap-8 p-6 pt-0">
-        <div className="flex flex-col items-start gap-4 lg:col-span-3">
+      <CardContent className="flex flex-col lg:flex-row gap-8 p-6 pt-0">
+        <div className="flex flex-col items-start gap-4 lg:w-3/4">
             <h3 className="text-lg font-semibold font-headline">Andamento Titoli (Azioni & ETF)</h3>
             <div>
               <p className="text-sm text-muted-foreground">{hoverDate || 'Valore Corrente (EUR)'}</p>
@@ -284,8 +284,8 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
             </div>
 
             {securitiesSummary && securitiesSummary.totalCurrentValue > 0 ? (
-                <div className="flex w-full flex-col items-start gap-4">
-                    <ChartContainer config={areaChartConfig} className="h-[250px] w-full">
+                <div className="flex w-full flex-col items-start gap-4 flex-1">
+                    <ChartContainer config={areaChartConfig} className="w-full min-h-[250px] flex-1">
                         <AreaChart 
                         data={historicalChartData}
                         margin={{ top: 5, right: 10, left: 0, bottom: 0 }}
@@ -342,7 +342,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
             )}
         </div>
 
-        <div className="flex flex-col gap-4 col-span-1 lg:border-l lg:pl-8 lg:pt-0 border-transparent pt-6">
+        <div className="flex flex-col gap-4 lg:w-1/4 lg:border-l lg:pl-8 lg:pt-0 border-transparent pt-6">
             <div className="flex-shrink-0">
                 <h3 className="text-lg font-semibold font-headline">Patrimonio Complessivo</h3>
                 <div>
@@ -352,9 +352,9 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                     </p>
                 </div>
             </div>
-            <div className="flex-1 w-full flex items-center justify-center min-h-0">
+            <div className="flex-1 w-full flex items-stretch justify-center min-h-0">
                  {pieData.length > 0 ? (
-                    <ChartContainer config={pieChartConfig} className="w-full h-[250px]">
+                    <ChartContainer config={pieChartConfig} className="w-full min-h-[250px]">
                         <PieChart>
                             <ChartTooltip
                                 cursor={false}
