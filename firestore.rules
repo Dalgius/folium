@@ -3,23 +3,12 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Regole per la collezione 'assets'
-    match /assets/{assetId} {
-
-      // REGOLA DI CREAZIONE:
-      // Un utente può creare un nuovo asset se:
-      // 1. È autenticato (request.auth non è nullo).
-      // 2. Il campo 'userId' del nuovo documento (request.resource.data)
-      //    corrisponde al suo ID utente (request.auth.uid).
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-
-      // REGOLE DI LETTURA, MODIFICA, CANCELLAZIONE:
-      // Un utente può leggere, modificare o cancellare un asset esistente se:
-      // 1. È autenticato.
-      // 2. Il campo 'userId' del documento già presente nel database (resource.data)
-      //    corrisponde al suo ID utente.
-      // Questa regola copre get (lettura singola), list (query), update e delete.
-      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    // REGOLE DI SVILUPPO TEMPORANEE
+    // Queste regole permettono a qualsiasi utente autenticato di leggere e scrivere
+    // in qualsiasi punto del database. Sono utili per sbloccare lo sviluppo,
+    // ma DEVONO essere sostituite con regole più restrittive prima del rilascio.
+    match /{document=**} {
+      allow read, write: if request.auth != null;
     }
   }
 }
