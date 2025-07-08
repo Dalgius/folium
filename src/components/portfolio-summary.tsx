@@ -98,18 +98,23 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
         const rate = rates[asset.currency] || 1;
         const valueInEur = asset.currentValue * rate;
         const key = sanitizeNameForChart(asset.type);
-        acc[key] = (acc[key] || 0) + valueInEur;
-        return acc;
-      }, {} as Record<string, number>);
-
-      const finalPieData = Object.entries(allocation).map(([key, value]) => {
         const typeConfig = Object.entries(pieChartConfig).find(([configKey, _]) => configKey === key);
-        if (!typeConfig) return null;
+        if (!typeConfig) return acc;
+        
+        const label = typeConfig[1].label as string;
+        if (!acc[label]) {
+            acc[label] = { value: 0, key: key };
+        }
+        acc[label].value += valueInEur;
+        return acc;
+      }, {} as Record<string, { value: number; key: string }>);
+
+      const finalPieData = Object.entries(allocation).map(([label, data]) => {
         return {
-          name: key,
-          label: typeConfig[1].label,
-          value: value,
-          fill: `var(--color-${key})`
+          name: data.key,
+          label: label,
+          value: data.value,
+          fill: `var(--color-${data.key})`
         }
       }).filter(d => d && d.value > 0);
       setPieData(finalPieData as any[]);
@@ -251,11 +256,11 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="p-6">
         <CardTitle>Riepilogo Portafoglio</CardTitle>
       </CardHeader>
-      <CardContent className="grid grid-cols-1 lg:grid-cols-4 gap-8 px-6 pb-6">
-        <div className="flex flex-col gap-4 lg:col-span-3">
+      <CardContent className="grid grid-cols-4 gap-8 p-6 pt-0">
+        <div className="flex flex-col gap-4 col-span-3">
             <h3 className="text-lg font-semibold font-headline">Andamento Titoli (Azioni & ETF)</h3>
             <div>
               <p className="text-sm text-muted-foreground">{hoverDate || 'Valore Corrente (EUR)'}</p>
@@ -282,7 +287,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                     <ChartContainer config={areaChartConfig} className="h-[250px] w-full">
                         <AreaChart 
                         data={historicalChartData} 
-                        margin={{ top: 5, right: 10, left: -20, bottom: 0 }}
+                        margin={{ top: 5, right: 0, left: -32, bottom: 0 }}
                         onMouseMove={handleMouseMove}
                         onMouseLeave={handleMouseLeave}
                         >
@@ -346,7 +351,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                 </p>
             </div>
              {pieData.length > 0 ? (
-                <ChartContainer config={pieChartConfig} className="mx-auto aspect-square w-full">
+                <ChartContainer config={pieChartConfig} className="aspect-square w-full">
                     <PieChart>
                         <ChartTooltip
                             cursor={false}
@@ -384,4 +389,3 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
     </Card>
   );
 }
- 
