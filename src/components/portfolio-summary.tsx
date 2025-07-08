@@ -5,7 +5,7 @@ import { Asset, AssetType, assetTypes } from "@/types";
 import { formatCurrency, cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Pie, PieChart } from "recharts";
 import { useState, useEffect, useMemo } from "react";
 import { getExchangeRate, getHistoricalData, HistoricalDataPoint } from "@/services/finance.service";
@@ -230,7 +230,6 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
       <Card>
         <CardHeader>
           <Skeleton className="h-6 w-3/4" />
-          <Skeleton className="h-4 w-1/2" />
         </CardHeader>
         <CardContent className="flex flex-col items-center justify-center gap-6">
             <Skeleton className="h-48 w-full" />
@@ -298,8 +297,8 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                                 </linearGradient>
                             </defs>
                             <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                            <XAxis dataKey="date" tickLine={false} axisLine={false} tick={false} />
-                            <YAxis tickLine={false} axisLine={false} tick={false} domain={['dataMin - (dataMax-dataMin)*0.1', 'dataMax + (dataMax-dataMin)*0.1']} />
+                            <XAxis dataKey="date" tickLine={false} axisLine={false} tick={false} tickMargin={0} />
+                            <YAxis tickLine={false} axisLine={false} tick={false} domain={['dataMin - (dataMax-dataMin)*0.1', 'dataMax + (dataMax-dataMin)*0.1']} width={0} tickMargin={0} />
                             <ChartTooltip
                                 cursor={true}
                                 content={<ChartTooltipContent
@@ -350,33 +349,35 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                 </p>
             </div>
              {pieData.length > 0 ? (
-                <ChartContainer config={pieChartConfig} className="aspect-square w-full">
-                    <PieChart>
-                        <ChartTooltip
-                            cursor={false}
-                            content={<ChartTooltipContent
-                                hideLabel
-                                formatter={(value, name, props) => (
-                                    <div className="flex flex-col items-start">
-                                        <span>{props.payload.label}</span>
-                                        <span className="font-bold">{formatCurrency(value as number, 'EUR')}</span>
-                                    </div>
-                                )}
-                            />}
-                        />
-                        <Pie
-                            data={pieData}
-                            dataKey="value"
-                            nameKey="name"
-                            cx="50%"
-                            cy="50%"
-                            innerRadius="60%"
-                            outerRadius="95%"
-                            paddingAngle={2}
-                            label={false}
-                        />
-                    </PieChart>
-                </ChartContainer>
+                <div className="w-full aspect-square">
+                    <ChartContainer config={pieChartConfig}>
+                        <PieChart>
+                            <ChartTooltip
+                                cursor={false}
+                                content={<ChartTooltipContent
+                                    hideLabel
+                                    formatter={(value, name, props) => (
+                                        <div className="flex flex-col items-start">
+                                            <span>{props.payload.label}</span>
+                                            <span className="font-bold">{formatCurrency(value as number, 'EUR')}</span>
+                                        </div>
+                                    )}
+                                />}
+                            />
+                            <Pie
+                                data={pieData}
+                                dataKey="value"
+                                nameKey="name"
+                                cx="50%"
+                                cy="50%"
+                                innerRadius="60%"
+                                outerRadius="95%"
+                                paddingAngle={2}
+                                label={false}
+                            />
+                        </PieChart>
+                    </ChartContainer>
+                </div>
              ) : (
                 <div className="flex flex-col items-center justify-center text-center">
                     <Wallet className="h-10 w-10 text-muted-foreground" />
