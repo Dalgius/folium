@@ -1,0 +1,18 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Regole per la collezione 'assets'
+    match /assets/{assetId} {
+      // Un utente può leggere, aggiornare o eliminare un asset solo se
+      // il suo ID utente (request.auth.uid) corrisponde al campo 'userId'
+      // nel documento dell'asset (resource.data.userId).
+      allow read, update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+
+      // Un utente può creare un asset solo se è autenticato e sta impostando
+      // il campo 'userId' del nuovo documento (request.resource.data.userId)
+      // sul proprio ID utente.
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+  }
+}
