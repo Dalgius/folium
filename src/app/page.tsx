@@ -10,6 +10,7 @@ import { getQuote } from '@/services/finance.service';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useAuth } from '@/hooks/use-auth';
+import { getAssets, addAsset, updateAsset, deleteAsset, type AddableAsset } from '@/services/asset.service';
 
 import { AddAssetDialog } from '@/components/add-asset-dialog';
 import { AssetCard } from '@/components/asset-card';
@@ -17,43 +18,6 @@ import { PortfolioSummary } from '@/components/portfolio-summary';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
-import { type AddableAsset } from '@/services/asset.service';
-
-const initialAssets: Asset[] = [
-    {
-        id: '1',
-        name: 'Apple Inc.',
-        ticker: 'AAPL',
-        type: 'Azione',
-        quantity: 10,
-        purchasePrice: 150,
-        purchaseDate: new Date('2023-01-15').toISOString(),
-        currency: 'USD',
-        initialValue: 1500,
-        currentValue: 1750,
-    },
-    {
-        id: '2',
-        name: 'iShares Core S&P 500 ETF',
-        ticker: 'IVV',
-        type: 'ETF',
-        quantity: 5,
-        purchasePrice: 400,
-        purchaseDate: new Date('2023-03-20').toISOString(),
-        currency: 'USD',
-        initialValue: 2000,
-        currentValue: 2200,
-    },
-    {
-        id: '3',
-        name: 'Conto Corrente Principale',
-        type: 'Conto Bancario',
-        currency: 'EUR',
-        initialValue: 5000,
-        currentValue: 5000,
-        purchaseDate: new Date().toISOString(),
-    }
-];
 
 
 export default function Home() {
@@ -65,23 +29,28 @@ export default function Home() {
 
   useEffect(() => {
     if (user) {
-      // Simula il caricamento dei dati
-      setAssets(initialAssets);
+      setIsLoading(true);
+      getAssets()
+        .then(setAssets)
+        .catch(error => {
+          console.error("Errore nel caricamento degli asset:", error);
+          toast({ title: "Errore", description: "Impossibile caricare gli asset dal database.", variant: "destructive" });
+        })
+        .finally(() => setIsLoading(false));
+    } else {
+      setAssets([]);
       setIsLoading(false);
     }
-  }, [user]);
+  }, [user, toast]);
 
   const handleLogout = async () => {
     await signOut(auth);
   };
 
-  const handleAddAsset = (asset: AddableAsset) => {
+  const handleAddAsset = async (asset: AddableAsset) => {
     try {
-        const newAsset: Asset = {
-            ...asset,
-            id: crypto.randomUUID(),
-        };
-        setAssets(prevAssets => [newAsset, ...prevAssets]);
+        const newAssetWithId = await addAsset(asset);
+        setAssets(prevAssets => [newAssetWithId, ...prevAssets]);
         toast({ title: "Successo", description: "Asset aggiunto correttamente." });
     } catch (error) {
         console.error("Errore nell'aggiunta dell'asset:", error);
@@ -91,25 +60,25 @@ export default function Home() {
 
   const handleUpdateAsset = async (id: string, updatedData: Partial<Omit<Asset, 'id'>>) => {
      try {
-        let finalUpdatedData = { ...updatedData };
         const assetToUpdate = assets.find(a => a.id === id);
         if (!assetToUpdate) return;
         
-        // Se la quantità o il prezzo d'acquisto cambiano, ricalcoliamo i valori
+        let finalUpdatedData: Partial<Asset> = { ...updatedData };
+        
         if (updatedData.quantity !== undefined || updatedData.purchasePrice !== undefined) {
             const quantity = updatedData.quantity ?? assetToUpdate.quantity ?? 0;
             const purchasePrice = updatedData.purchasePrice ?? assetToUpdate.purchasePrice ?? 0;
-            const initialValue = quantity * purchasePrice;
-            finalUpdatedData.initialValue = initialValue;
+            finalUpdatedData.initialValue = quantity * purchasePrice;
 
-            // Ricalcola il valore corrente
             if (assetToUpdate.ticker) {
                 const quote = await getQuote(assetToUpdate.ticker);
-                finalUpdatedData.currentValue = quote ? quote.price * quantity : initialValue;
-            } else {
-                finalUpdatedData.currentValue = initialValue;
+                finalUpdatedData.currentValue = quote ? quote.price * quantity : finalUpdatedData.initialValue;
             }
+        } else if (updatedData.currentValue !== undefined) {
+            finalUpdatedData.initialValue = updatedData.currentValue;
         }
+        
+        await updateAsset(id, finalUpdatedData as Partial<AddableAsset>);
         
         setAssets(prevAssets => prevAssets.map(asset => 
             asset.id === id ? { ...asset, ...finalUpdatedData } : asset
@@ -135,6 +104,7 @@ export default function Home() {
                 if (index !== -1) {
                     const newCurrentValue = quote.price * asset.quantity;
                     updatedAssets[index].currentValue = newCurrentValue;
+                    await updateAsset(asset.id, { currentValue: newCurrentValue });
                 }
             }
         }
@@ -147,8 +117,9 @@ export default function Home() {
     }
   };
 
-  const handleDeleteAsset = (id: string) => {
+  const handleDeleteAsset = async (id: string) => {
     try {
+        await deleteAsset(id);
         setAssets(prevAssets => prevAssets.filter(asset => asset.id !== id));
         toast({ title: "Successo", description: "Asset eliminato." });
     } catch (error) {
@@ -281,3 +252,5 @@ export default function Home() {
     </div>
   );
 }
+
+    
