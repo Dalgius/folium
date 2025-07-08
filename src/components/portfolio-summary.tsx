@@ -284,8 +284,8 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
             </div>
 
             {securitiesSummary && securitiesSummary.totalCurrentValue > 0 ? (
-                <div className="flex w-full flex-col items-start gap-4 flex-1">
-                    <ChartContainer config={areaChartConfig} className="w-full min-h-[250px] flex-1">
+                <div className="flex w-full flex-col items-start gap-4">
+                    <ChartContainer config={areaChartConfig} className="w-full h-[250px]">
                         <AreaChart 
                         data={historicalChartData}
                         margin={{ top: 5, right: 10, left: 0, bottom: 0 }}
@@ -334,7 +334,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                     </div>
                 </div>
             ) : (
-                <div className="flex h-[214px] w-full flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 text-center">
+                <div className="flex h-[314px] w-full flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 text-center">
                      <TrendingUp className="h-10 w-10 text-muted-foreground" />
                      <p className="mt-2 text-sm font-medium">Nessun titolo nel portafoglio</p>
                      <p className="text-xs text-muted-foreground">Aggiungi azioni o ETF per vederne l'andamento.</p>
@@ -352,9 +352,9 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                     </p>
                 </div>
             </div>
-            <div className="flex-1 w-full flex items-stretch justify-center min-h-0">
+            <div className="w-full flex items-center justify-center">
                  {pieData.length > 0 ? (
-                    <ChartContainer config={pieChartConfig} className="w-full min-h-[250px]">
+                    <ChartContainer config={pieChartConfig} className="w-full h-[250px]">
                         <PieChart>
                             <ChartTooltip
                                 cursor={false}
@@ -382,7 +382,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                         </PieChart>
                     </ChartContainer>
                  ) : (
-                    <div className="flex h-full flex-col items-center justify-center text-center">
+                    <div className="flex h-[250px] flex-col items-center justify-center text-center">
                         <Wallet className="h-10 w-10 text-muted-foreground" />
                         <p className="mt-2 text-sm font-medium">Patrimonio non calcolabile</p>
                     </div>
