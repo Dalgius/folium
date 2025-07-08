@@ -254,7 +254,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
       <CardHeader>
         <CardTitle>Riepilogo Portafoglio</CardTitle>
       </CardHeader>
-      <CardContent className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <CardContent className="grid grid-cols-1 lg:grid-cols-4 gap-8 px-6 pb-6">
         <div className="flex flex-col gap-4 lg:col-span-3">
             <h3 className="text-lg font-semibold font-headline">Andamento Titoli (Azioni & ETF)</h3>
             <div>
@@ -282,7 +282,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                     <ChartContainer config={areaChartConfig} className="h-[250px] w-full">
                         <AreaChart 
                         data={historicalChartData} 
-                        margin={{ top: 5, right: 10, left: 10, bottom: 0 }}
+                        margin={{ top: 5, right: 10, left: -20, bottom: 0 }}
                         onMouseMove={handleMouseMove}
                         onMouseLeave={handleMouseLeave}
                         >
