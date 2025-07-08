@@ -96,16 +96,17 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
       const allocation = assets.reduce((acc, asset) => {
         const rate = rates[asset.currency] || 1;
         const valueInEur = asset.currentValue * rate;
-        acc[asset.type] = (acc[asset.type] || 0) + valueInEur;
+        const key = assetTypeToKey(asset.type);
+        acc[key] = (acc[key] || 0) + valueInEur;
         return acc;
-      }, {} as Record<AssetType, number>);
+      }, {} as Record<string, number>);
 
-      const finalPieData = assetTypes.map(type => {
-        const key = assetTypeToKey(type);
+      const finalPieData = Object.entries(allocation).map(([key, value]) => {
+        const type = assetTypes.find(t => assetTypeToKey(t) === key)!;
         return {
           name: key,
           label: type,
-          value: allocation[type] || 0,
+          value: value,
           fill: `var(--color-${key})`
         }
       }).filter(d => d.value > 0);
@@ -348,8 +349,8 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                     {formatCurrency(totalPatrimony, 'EUR')}
                 </p>
             </div>
-             <div className="flex flex-col gap-4 items-center flex-grow justify-center">
-                 <h4 className="font-semibold text-center">Composizione</h4>
+             <div className="flex flex-col items-center">
+                 <h4 className="font-semibold text-center mb-4">Composizione</h4>
                  {pieData.length > 0 ? (
                     <ChartContainer config={pieChartConfig} className="h-[160px] w-full">
                         <PieChart>
