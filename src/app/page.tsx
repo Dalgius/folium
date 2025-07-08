@@ -2,8 +2,8 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Asset } from '@/types';
-import { PlusCircle, BarChart2 } from 'lucide-react';
+import { Asset, AssetType } from '@/types';
+import { PlusCircle, BarChart2, SearchX } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { getQuote } from '@/services/finance.service';
 
@@ -18,6 +18,7 @@ import { getAssets, addAsset, updateAsset, deleteAsset, type AddableAsset } from
 export default function Home() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState<AssetType | 'Tutti'>('Tutti');
   const { toast } = useToast();
 
   const fetchAssets = async () => {
@@ -45,7 +46,7 @@ export default function Home() {
     try {
       await addAsset(asset);
       toast({ title: "Successo", description: "Asset aggiunto correttamente." });
-      fetchAssets(); // Re-fetch assets to update the list
+      fetchAssets(); 
     } catch (error) {
       console.error("Errore nell'aggiunta dell'asset:", error);
       toast({ title: "Errore", description: "Impossibile aggiungere l'asset.", variant: "destructive" });
@@ -66,13 +67,11 @@ export default function Home() {
             const initialValue = quantity * purchasePrice;
             dataWithRecalculatedValues.initialValue = initialValue;
 
-            // If we have a ticker, let's also update the current value based on the new quantity
             if(assetToUpdate.ticker) {
               const quote = await getQuote(assetToUpdate.ticker);
               if (quote?.price) {
                 dataWithRecalculatedValues.currentValue = quote.price * quantity;
               } else {
-                // Fallback to initial value if quote fails
                 dataWithRecalculatedValues.currentValue = initialValue;
               }
             } else {
@@ -140,6 +139,21 @@ export default function Home() {
     </div>
   );
 
+  const filteredAssets = assets.filter(asset => 
+    activeFilter === 'Tutti' || asset.type === activeFilter
+  );
+
+  const filterOptions: { label: string; value: AssetType | 'Tutti' }[] = [
+    { label: 'Tutti', value: 'Tutti' },
+    { label: 'Azioni', value: 'Azione' },
+    { label: 'ETF', value: 'ETF' },
+    { label: 'Conti Bancari', value: 'Conto Bancario' },
+  ];
+  
+  const getFilterLabel = (filterValue: AssetType | 'Tutti') => {
+    return filterOptions.find(opt => opt.value === filterValue)?.label || 'Asset';
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <main className="container mx-auto p-4 sm:p-6 lg:p-8">
@@ -152,26 +166,55 @@ export default function Home() {
               </Button>
             </AddAssetDialog>
           </div>
-          <PortfolioSummary assets={assets} />
+          <PortfolioSummary assets={filteredAssets} />
         </header>
+        
+        <div className="mb-6 flex flex-wrap items-center gap-2 rounded-lg border bg-card p-2">
+            {filterOptions.map((option) => (
+                <Button
+                key={option.value}
+                variant={activeFilter === option.value ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setActiveFilter(option.value)}
+                className="flex-grow sm:flex-grow-0"
+                >
+                {option.label}
+                </Button>
+            ))}
+        </div>
 
         {isLoading ? (
           renderSkeletons()
         ) : assets.length > 0 ? (
-          <>
-            <h2 className="mb-4 text-2xl font-bold text-foreground font-headline">I Miei Asset</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {assets.map(asset => (
-                <AssetCard
-                  key={asset.id}
-                  asset={asset}
-                  onRefresh={handleRefreshAsset}
-                  onDelete={handleDeleteAsset}
-                  onUpdate={handleUpdateAsset}
-                />
-              ))}
+          <section>
+            <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold text-foreground font-headline">
+                    {getFilterLabel(activeFilter)}
+                </h2>
+                <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-1 rounded-md">
+                    {filteredAssets.length} {filteredAssets.length === 1 ? 'risultato' : 'risultati'}
+                </span>
             </div>
-          </>
+            {filteredAssets.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredAssets.map(asset => (
+                    <AssetCard
+                    key={asset.id}
+                    asset={asset}
+                    onRefresh={handleRefreshAsset}
+                    onDelete={handleDeleteAsset}
+                    onUpdate={handleUpdateAsset}
+                    />
+                ))}
+                </div>
+            ) : (
+                <div className="text-center py-20 px-6 border-2 border-dashed border-border rounded-lg">
+                    <SearchX className="mx-auto h-12 w-12 text-muted-foreground" />
+                    <h2 className="mt-4 text-xl font-semibold text-foreground">Nessun asset trovato</h2>
+                    <p className="mt-2 text-sm text-muted-foreground">Non ci sono asset che corrispondono al filtro &quot;{getFilterLabel(activeFilter)}&quot;.</p>
+                </div>
+            )}
+          </section>
         ) : (
           <div className="text-center py-20 px-6 border-2 border-dashed border-border rounded-lg">
             <BarChart2 className="mx-auto h-12 w-12 text-muted-foreground" />
