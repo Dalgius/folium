@@ -255,8 +255,8 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
         <CardTitle>Riepilogo Portafoglio</CardTitle>
         <CardDescription>Una visione d'insieme del tuo patrimonio e delle performance dei tuoi investimenti.</CardDescription>
       </CardHeader>
-      <CardContent className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-        <div className="flex flex-col gap-4 lg:col-span-3">
+      <CardContent className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="flex flex-col gap-4 lg:col-span-2">
             <h3 className="text-lg font-semibold font-headline">Andamento Titoli (Azioni & ETF)</h3>
             <div>
               <p className="text-sm text-muted-foreground">{hoverDate || 'Valore Corrente (EUR)'}</p>
@@ -338,7 +338,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
             )}
         </div>
 
-        <div className="flex flex-col gap-4 lg:col-span-2 lg:border-l lg:pl-8">
+        <div className="flex flex-col gap-4 lg:col-span-1 lg:border-l lg:pl-8">
             <h3 className="text-lg font-semibold font-headline">Patrimonio Complessivo</h3>
             <div>
                 <p className="text-sm text-muted-foreground">Valore Totale (EUR)</p>
@@ -373,7 +373,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                                 paddingAngle={2}
                                 label={false}
                             />
-                            <ChartLegend content={<ChartLegendContent nameKey="name" />} />
+                            <ChartLegend content={<ChartLegendContent nameKey="label" />} />
                         </PieChart>
                     </ChartContainer>
                  ) : (
