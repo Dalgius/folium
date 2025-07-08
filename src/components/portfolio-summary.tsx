@@ -279,7 +279,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
 
             {securitiesSummary && securitiesSummary.totalCurrentValue > 0 ? (
                 <>
-                    <ChartContainer config={areaChartConfig} className="h-[150px] w-full">
+                    <ChartContainer config={areaChartConfig} className="h-[250px] w-full">
                         <AreaChart 
                         data={historicalChartData} 
                         margin={{ top: 5, right: 10, left: 10, bottom: 0 }}
@@ -346,7 +346,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                 </p>
             </div>
              {pieData.length > 0 ? (
-                <ChartContainer config={pieChartConfig} className="w-full aspect-square mt-2">
+                <ChartContainer config={pieChartConfig} className="mx-auto w-full aspect-square max-w-[180px]">
                     <PieChart>
                         <ChartTooltip
                             cursor={false}
