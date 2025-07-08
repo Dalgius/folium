@@ -45,8 +45,8 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
     performance > 0 ? "text-green-600" : performance < 0 ? "text-red-600" : "text-muted-foreground"
   );
   
-  const dailyGainAbsolute = (asset.dailyChange && asset.quantity) ? asset.dailyChange * asset.quantity : 0;
-  const dailyGainPercent = asset.dailyChangePercent ? asset.dailyChangePercent * 100 : 0;
+  const dailyGainAbsolute = (asset.dailyChange != null && asset.quantity != null) ? asset.dailyChange * asset.quantity : 0;
+  const dailyGainPercent = asset.dailyChangePercent != null ? asset.dailyChangePercent * 100 : 0;
   const dailyPerformanceColor = cn({
     "text-green-600": dailyGainAbsolute > 0,
     "text-red-600": dailyGainAbsolute < 0,
@@ -89,7 +89,7 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
                   Valore corrente
               </div>
             </div>
-            {(asset.type === 'Azione' || asset.type === 'ETF') && asset.dailyChange !== undefined && asset.dailyChangePercent !== undefined && (
+            {(asset.type === 'Azione' || asset.type === 'ETF') && asset.dailyChange != null && asset.dailyChangePercent != null && (
               <div className="text-right flex flex-col items-end">
                   <span className={cn("text-sm font-semibold", dailyPerformanceColor)}>
                       {(dailyGainPercent >= 0 ? '+' : '')}{dailyGainPercent.toFixed(2)}%
