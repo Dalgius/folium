@@ -32,7 +32,7 @@ const timePeriods: { label: string; value: TimePeriod, days: number }[] = [
 const areaChartConfig = {
   value: {
     label: 'Valore',
-    color: 'hsl(var(--chart-1))',
+    color: 'hsl(var(--primary))',
   },
 } satisfies ChartConfig;
 
@@ -311,7 +311,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
             </div>
             <div className="lg:col-span-2 flex flex-col gap-4 items-center">
                  <h3 className="font-semibold text-center">Composizione</h3>
-                 <ChartContainer config={pieChartConfig} className="h-[200px] w-full">
+                 <ChartContainer config={pieChartConfig} className="h-[160px] w-full">
                     <PieChart>
                         <ChartTooltip
                             cursor={false}
@@ -326,8 +326,8 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                             nameKey="name"
                             cx="50%"
                             cy="50%"
-                            innerRadius={50}
-                            outerRadius={80}
+                            innerRadius={40}
+                            outerRadius={60}
                             paddingAngle={2}
                             label={false}
                          />
