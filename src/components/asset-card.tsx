@@ -58,13 +58,15 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
         "flex flex-col overflow-hidden transition-all duration-300",
         isExpanded ? "shadow-lg" : "shadow-sm hover:shadow-md"
     )}>
-      <div onClick={() => setIsExpanded(!isExpanded)} className="cursor-pointer">
-        <CardHeader className="flex-row items-start justify-between gap-4 space-y-0 p-4 pb-2">
-            <div className="flex items-center gap-3">
-              <AssetIcon type={asset.type} className="h-7 w-7 text-primary" />
-              <CardTitle className="text-lg font-headline">{asset.name}</CardTitle>
+      <div onClick={() => setIsExpanded(!isExpanded)} className="cursor-pointer flex-grow">
+        <CardHeader className="flex-row items-start justify-between gap-4 space-y-0 p-4">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <AssetIcon type={asset.type} className="h-7 w-7 text-primary flex-shrink-0" />
+              <CardTitle className="text-lg font-headline truncate" title={asset.name}>
+                {asset.name}
+              </CardTitle>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
                 <div className="flex flex-col items-end">
                     <div className="flex items-center gap-1.5">
                         <PerformanceIndicator performance={performance} className="h-4 w-4" />
@@ -79,7 +81,7 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
                 <ChevronDown className={cn("h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200", isExpanded && "rotate-180")} />
             </div>
         </CardHeader>
-        <CardContent className="p-4 pt-2">
+        <CardContent className="p-4 pt-0">
           <div className="flex justify-between items-end">
             <div>
               <div className="text-2xl font-bold text-foreground">
@@ -89,16 +91,18 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
                   Valore corrente
               </div>
             </div>
-            {(asset.type === 'Azione' || asset.type === 'ETF') && asset.dailyChange != null && asset.dailyChangePercent != null && (
-              <div className="text-right flex flex-col items-end">
+            <div className="text-right flex flex-col items-end min-h-[36px] justify-end">
+              {(asset.type === 'Azione' || asset.type === 'ETF') && asset.dailyChange != null && asset.dailyChangePercent != null && (
+                <>
                   <span className={cn("text-sm font-semibold", dailyPerformanceColor)}>
                       {(dailyGainPercent >= 0 ? '+' : '')}{dailyGainPercent.toFixed(2)}%
                   </span>
                   <span className={cn("text-xs font-medium", dailyPerformanceColor)}>
                     {(dailyGainAbsolute >= 0 ? '+' : '')}{formatCurrency(dailyGainAbsolute, asset.currency)} (Oggi)
                   </span>
-              </div>
-            )}
+                </>
+              )}
+            </div>
           </div>
         </CardContent>
       </div>
