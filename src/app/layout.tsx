@@ -4,7 +4,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { AuthProvider } from '@/hooks/use-auth';
 
 export const metadata: Metadata = {
-  title: 'CrescitaChiara',
+  title: 'Folium',
   description: 'Traccia i tuoi asset e osserva la crescita del tuo portafoglio.',
 };
 

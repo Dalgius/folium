@@ -56,7 +56,7 @@ export default function LoginPage() {
             <div className="flex justify-center items-center mb-4">
                 <BarChart2 className="h-8 w-8 text-primary" />
             </div>
-            <CardTitle className="text-2xl font-bold">Bentornato in CrescitaChiara</CardTitle>
+            <CardTitle className="text-2xl font-bold">Bentornato in Folium</CardTitle>
             <CardDescription>Inserisci le tue credenziali per accedere al tuo portafoglio.</CardDescription>
         </CardHeader>
         <CardContent>

@@ -1,4 +1,4 @@
-# CrescitaChiara
+# Folium
 
 A Next.js application to track your assets and watch your portfolio grow.
 
