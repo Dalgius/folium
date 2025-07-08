@@ -5,7 +5,7 @@ import { Asset, AssetType, assetTypes } from "@/types";
 import { formatCurrency, cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Pie, PieChart } from "recharts";
 import { useState, useEffect, useMemo } from "react";
 import { getExchangeRate, getHistoricalData, HistoricalDataPoint } from "@/services/finance.service";
@@ -346,7 +346,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                 </p>
             </div>
              {pieData.length > 0 ? (
-                <ChartContainer config={pieChartConfig} className="mx-auto w-full aspect-square max-w-[180px]">
+                <ChartContainer config={pieChartConfig} className="mx-auto aspect-square w-full">
                     <PieChart>
                         <ChartTooltip
                             cursor={false}
@@ -384,3 +384,4 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
     </Card>
   );
 }
+ 
