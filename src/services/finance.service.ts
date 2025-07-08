@@ -85,8 +85,8 @@ export async function getQuote(ticker: string): Promise<Quote | null> {
 
 export async function getExchangeRate(from: Currency, to: Currency): Promise<number | null> {
     if (from === to) return 1;
+    const ticker = `${from}${to}=X`;
     try {
-        const ticker = `${from}${to}=X`;
         const result = await yahooFinance.quote(ticker);
         if (result && result.regularMarketPrice) {
             return result.regularMarketPrice;
