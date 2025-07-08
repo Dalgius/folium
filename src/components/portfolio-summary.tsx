@@ -103,15 +103,16 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
       }, {} as Record<string, number>);
 
       const finalPieData = Object.entries(allocation).map(([key, value]) => {
-        const type = assetTypes.find(t => sanitizeNameForChart(t) === key)!;
+        const typeConfig = Object.entries(pieChartConfig).find(([configKey, _]) => configKey === key);
+        if (!typeConfig) return null;
         return {
           name: key,
-          label: type,
+          label: typeConfig[1].label,
           value: value,
           fill: `var(--color-${key})`
         }
-      }).filter(d => d.value > 0);
-      setPieData(finalPieData);
+      }).filter(d => d && d.value > 0);
+      setPieData(finalPieData as any[]);
 
       if (securitiesAssets.length > 0) {
         const today = new Date();
@@ -239,7 +240,6 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
       <Card>
         <CardHeader>
           <CardTitle>Riepilogo Portafoglio</CardTitle>
-          <CardDescription>Il tuo portafoglio è vuoto.</CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-2xl font-bold">{formatCurrency(0, 'EUR')}</p>
@@ -254,8 +254,8 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
       <CardHeader>
         <CardTitle>Riepilogo Portafoglio</CardTitle>
       </CardHeader>
-      <CardContent className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="flex flex-col gap-4 lg:col-span-2">
+      <CardContent className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div className="flex flex-col gap-4 lg:col-span-3">
             <h3 className="text-lg font-semibold font-headline">Andamento Titoli (Azioni & ETF)</h3>
             <div>
               <p className="text-sm text-muted-foreground">{hoverDate || 'Valore Corrente (EUR)'}</p>
@@ -345,45 +345,45 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                     {formatCurrency(totalPatrimony, 'EUR')}
                 </p>
             </div>
-             <div className="mt-2 flex flex-col items-center">
-                 {pieData.length > 0 ? (
-                    <ChartContainer config={pieChartConfig} className="h-[180px] w-full">
-                        <PieChart>
-                            <ChartTooltip
-                                cursor={false}
-                                content={<ChartTooltipContent
-                                    hideLabel
-                                    formatter={(value, name, props) => (
-                                        <div className="flex flex-col items-start">
-                                            <span>{props.payload.label}</span>
-                                            <span className="font-bold">{formatCurrency(value as number, 'EUR')}</span>
-                                        </div>
-                                    )}
-                                />}
-                            />
-                            <Pie
-                                data={pieData}
-                                dataKey="value"
-                                nameKey="name"
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={50}
-                                outerRadius={70}
-                                paddingAngle={2}
-                                label={false}
-                            />
-                            <ChartLegend content={<ChartLegendContent nameKey="label" />} />
-                        </PieChart>
-                    </ChartContainer>
-                 ) : (
-                    <div className="flex flex-col items-center justify-center text-center">
-                        <Wallet className="h-10 w-10 text-muted-foreground" />
-                        <p className="mt-2 text-sm font-medium">Patrimonio non calcolabile</p>
-                    </div>
-                 )}
-            </div>
+             {pieData.length > 0 ? (
+                <ChartContainer config={pieChartConfig} className="w-full aspect-square">
+                    <PieChart>
+                        <ChartTooltip
+                            cursor={false}
+                            content={<ChartTooltipContent
+                                hideLabel
+                                formatter={(value, name, props) => (
+                                    <div className="flex flex-col items-start">
+                                        <span>{props.payload.label}</span>
+                                        <span className="font-bold">{formatCurrency(value as number, 'EUR')}</span>
+                                    </div>
+                                )}
+                            />}
+                        />
+                        <Pie
+                            data={pieData}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius="50%"
+                            outerRadius="70%"
+                            paddingAngle={2}
+                            label={false}
+                        />
+                        <ChartLegend content={<ChartLegendContent nameKey="label" />} />
+                    </PieChart>
+                </ChartContainer>
+             ) : (
+                <div className="flex flex-col items-center justify-center text-center">
+                    <Wallet className="h-10 w-10 text-muted-foreground" />
+                    <p className="mt-2 text-sm font-medium">Patrimonio non calcolabile</p>
+                </div>
+             )}
         </div>
       </CardContent>
     </Card>
   );
 }
+
+    
