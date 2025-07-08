@@ -5,7 +5,7 @@ import { Asset, AssetType, assetTypes } from "@/types";
 import { formatCurrency, cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Pie, PieChart } from "recharts";
 import { useState, useEffect, useMemo } from "react";
 import { getExchangeRate, getHistoricalData, HistoricalDataPoint } from "@/services/finance.service";
@@ -259,8 +259,8 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
       <CardHeader className="p-6">
         <CardTitle>Riepilogo Portafoglio</CardTitle>
       </CardHeader>
-      <CardContent className="grid grid-cols-4 gap-8 p-6 pt-0">
-        <div className="flex flex-col items-start gap-4 col-span-3">
+      <CardContent className="grid grid-cols-1 lg:grid-cols-4 gap-8 p-6 pt-0">
+        <div className="flex flex-col items-start gap-4 col-span-1 lg:col-span-3">
             <h3 className="text-lg font-semibold font-headline">Andamento Titoli (Azioni & ETF)</h3>
             <div>
               <p className="text-sm text-muted-foreground">{hoverDate || 'Valore Corrente (EUR)'}</p>
@@ -283,10 +283,11 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
             </div>
 
             {securitiesSummary && securitiesSummary.totalCurrentValue > 0 ? (
-                <>
-                    <ChartContainer config={areaChartConfig} className="h-[250px] w-full justify-start">
+                <div className="flex flex-col items-start w-full gap-4">
+                    <ChartContainer config={areaChartConfig} className="h-[250px] w-full">
                         <AreaChart 
                         data={historicalChartData}
+                        margin={{ top: 5, right: 10, left: 0, bottom: 0 }}
                         onMouseMove={handleMouseMove}
                         onMouseLeave={handleMouseLeave}
                         >
@@ -330,9 +331,9 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                             </Button>
                         ))}
                     </div>
-                </>
+                </div>
             ) : (
-                <div className="flex flex-col items-center justify-center h-[214px] text-center border-2 border-dashed rounded-lg p-4">
+                <div className="flex flex-col items-center justify-center h-[214px] text-center border-2 border-dashed rounded-lg p-4 w-full">
                      <TrendingUp className="h-10 w-10 text-muted-foreground" />
                      <p className="mt-2 text-sm font-medium">Nessun titolo nel portafoglio</p>
                      <p className="text-xs text-muted-foreground">Aggiungi azioni o ETF per vederne l'andamento.</p>
@@ -340,7 +341,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
             )}
         </div>
 
-        <div className="flex flex-col gap-4 col-span-1 border-l pl-8">
+        <div className="flex flex-col gap-4 col-span-1 lg:border-l lg:pl-8 items-start">
             <h3 className="text-lg font-semibold font-headline">Patrimonio Complessivo</h3>
             <div>
                 <p className="text-sm text-muted-foreground">Valore Totale (EUR)</p>
@@ -370,7 +371,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                             cx="50%"
                             cy="50%"
                             innerRadius="60%"
-                            outerRadius="90%"
+                            outerRadius="95%"
                             paddingAngle={2}
                             label={false}
                         />
