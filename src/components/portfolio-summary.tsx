@@ -1,12 +1,12 @@
 
 "use client";
 
-import { Asset, AssetType } from "@/types";
+import { Asset, AssetType, assetTypes } from "@/types";
 import { formatCurrency, cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Pie, PieChart, Legend } from "recharts";
 import { useState, useEffect } from "react";
 import { getExchangeRate, getHistoricalData, HistoricalDataPoint } from "@/services/finance.service";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
@@ -29,16 +29,25 @@ const timePeriods: { label: string; value: TimePeriod, days: number }[] = [
     { label: 'Max', value: 'MAX', days: 9999 },
 ];
 
-const chartConfig = {
+const areaChartConfig = {
   value: {
     label: 'Valore',
     color: 'hsl(var(--chart-1))',
   },
 } satisfies ChartConfig;
 
+const pieChartConfig = assetTypes.reduce((acc, type, index) => {
+    acc[type] = {
+        label: type,
+        color: `hsl(var(--chart-${index + 2}))`
+    };
+    return acc;
+}, {} as ChartConfig);
+
 
 export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
-  const [chartData, setChartData] = useState<any[]>([]);
+  const [areaChartData, setAreaChartData] = useState<any[]>([]);
+  const [pieData, setPieData] = useState<any[]>([]);
   const [summary, setSummary] = useState<{ totalInitialValue: number; totalCurrentValue: number; } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('1Y');
@@ -50,7 +59,8 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
     const calculateHistoricalPortfolio = async () => {
       setIsLoading(true);
       if (assets.length === 0) {
-        setChartData([]);
+        setAreaChartData([]);
+        setPieData([]);
         setSummary({ totalInitialValue: 0, totalCurrentValue: 0 });
         setIsLoading(false);
         return;
@@ -102,7 +112,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
       const sortedDates = Array.from(dateSet).filter(d => parseISO(d) >= startDate).sort();
       const lastKnownPrices: Record<string, number> = {};
 
-      const finalChartData = sortedDates.map(dateStr => {
+      const finalAreaChartData = sortedDates.map(dateStr => {
           const currentDate = parseISO(dateStr);
           let dailyValueEUR = 0;
 
@@ -132,11 +142,27 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
           return { date: dateStr, value: parseFloat(dailyValueEUR.toFixed(2)) };
       }).filter(d => d.value > 0);
 
-      setChartData(finalChartData);
+      setAreaChartData(finalAreaChartData);
 
-      if (finalChartData.length > 0) {
-        const firstValue = finalChartData[0].value;
-        const lastValue = finalChartData[finalChartData.length - 1].value;
+      // Calculate Pie Chart Data
+      const allocation = assets.reduce((acc, asset) => {
+        const rate = rates[asset.currency] || 1;
+        const valueInEur = asset.currentValue * rate;
+        acc[asset.type] = (acc[asset.type] || 0) + valueInEur;
+        return acc;
+      }, {} as Record<AssetType, number>);
+
+      const finalPieData = assetTypes.map(type => ({
+        name: type,
+        value: allocation[type] || 0,
+        fill: `var(--color-${type})`
+      })).filter(d => d.value > 0);
+      setPieData(finalPieData);
+
+
+      if (finalAreaChartData.length > 0) {
+        const firstValue = finalAreaChartData[0].value;
+        const lastValue = finalAreaChartData[finalAreaChartData.length - 1].value;
         setSummary({ totalInitialValue: firstValue, totalCurrentValue: lastValue });
       } else {
         const totalCurrentValue = assets.reduce((sum, asset) => sum + (asset.currentValue * (rates[asset.currency] || 1)), 0);
@@ -232,72 +258,83 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
           </div>
         </div>
         
-        <ChartContainer config={chartConfig} className="h-[250px] w-full">
-            <AreaChart 
-              data={chartData} 
-              margin={{ top: 5, right: 10, left: 10, bottom: 0 }}
-              onMouseMove={handleMouseMove}
-              onMouseLeave={handleMouseLeave}
-            >
-                <defs>
-                    <linearGradient id="fillValue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--color-value)" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="var(--color-value)" stopOpacity={0.1}/>
-                    </linearGradient>
-                </defs>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis
-                    dataKey="date"
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={8}
-                    tickFormatter={(value) => {
-                        const date = parseISO(value);
-                        if (timePeriod === '1M') return format(date, "d MMM", { locale: it });
-                        return format(date, "MMM yy", { locale: it });
-                    }}
-                />
-                <YAxis
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={8}
-                    tickFormatter={(value) => {
-                        if (typeof value !== 'number') return '';
-                        return new Intl.NumberFormat('it-IT', { notation: 'compact', compactDisplay: 'short' }).format(value);
-                    }}
-                    domain={['dataMin - (dataMax-dataMin)*0.1', 'dataMax + (dataMax-dataMin)*0.1']}
-                />
-                <ChartTooltip
-                    cursor={true}
-                    content={<ChartTooltipContent
-                        formatter={(value) => formatCurrency(value as number, 'EUR')}
-                        labelFormatter={(label) => format(parseISO(label), "eeee, d MMMM yyyy", { locale: it })}
-                        indicator="dot"
-                    />}
-                />
-                <Area
-                    dataKey="value"
-                    type="natural"
-                    fill="url(#fillValue)"
-                    stroke="var(--color-value)"
-                    strokeWidth={2}
-                    dot={false}
-                />
-            </AreaChart>
-        </ChartContainer>
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+            <div className="lg:col-span-3 flex flex-col gap-4">
+                <ChartContainer config={areaChartConfig} className="h-[200px] w-full">
+                    <AreaChart 
+                      data={areaChartData} 
+                      margin={{ top: 5, right: 10, left: 10, bottom: 0 }}
+                      onMouseMove={handleMouseMove}
+                      onMouseLeave={handleMouseLeave}
+                    >
+                        <defs>
+                            <linearGradient id="fillValue" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="var(--color-value)" stopOpacity={0.8}/>
+                                <stop offset="95%" stopColor="var(--color-value)" stopOpacity={0.1}/>
+                            </linearGradient>
+                        </defs>
+                        <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                        <XAxis dataKey="date" tickLine={false} axisLine={false} tick={false} />
+                        <YAxis tickLine={false} axisLine={false} tick={false} domain={['dataMin - (dataMax-dataMin)*0.1', 'dataMax + (dataMax-dataMin)*0.1']} />
+                        <ChartTooltip
+                            cursor={true}
+                            content={<ChartTooltipContent
+                                formatter={(value) => formatCurrency(value as number, 'EUR')}
+                                labelFormatter={(label) => format(parseISO(label), "eeee, d MMMM yyyy", { locale: it })}
+                                indicator="dot"
+                            />}
+                        />
+                        <Area
+                            dataKey="value"
+                            type="natural"
+                            fill="url(#fillValue)"
+                            stroke="var(--color-value)"
+                            strokeWidth={2}
+                            dot={false}
+                        />
+                    </AreaChart>
+                </ChartContainer>
 
-        <div className="flex justify-center gap-1 rounded-lg border bg-card p-1">
-            {timePeriods.map((period) => (
-                <Button
-                    key={period.value}
-                    variant={timePeriod === period.value ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setTimePeriod(period.value)}
-                    className="flex-1"
-                >
-                    {period.label}
-                </Button>
-            ))}
+                <div className="flex justify-center gap-1 rounded-lg border bg-card p-1">
+                    {timePeriods.map((period) => (
+                        <Button
+                            key={period.value}
+                            variant={timePeriod === period.value ? 'default' : 'ghost'}
+                            size="sm"
+                            onClick={() => setTimePeriod(period.value)}
+                            className="flex-1"
+                        >
+                            {period.label}
+                        </Button>
+                    ))}
+                </div>
+            </div>
+            <div className="lg:col-span-2 flex flex-col gap-4 items-center">
+                 <h3 className="font-semibold text-center">Composizione</h3>
+                 <ChartContainer config={pieChartConfig} className="h-[200px] w-full">
+                    <PieChart>
+                        <ChartTooltip
+                            cursor={false}
+                            content={<ChartTooltipContent
+                                hideLabel
+                                formatter={(value) => formatCurrency(value as number, 'EUR')}
+                             />}
+                        />
+                         <Pie
+                            data={pieData}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={90}
+                            paddingAngle={2}
+                            label={false}
+                         />
+                        <ChartLegend content={<ChartLegendContent nameKey="name" />} />
+                    </PieChart>
+                 </ChartContainer>
+            </div>
         </div>
       </CardContent>
     </Card>
