@@ -30,20 +30,12 @@ export default function Home() {
     try {
       setIsLoading(true);
       const fetchedAssets = await getAssets();
-      // Ordiniamo gli asset qui, nel client, in attesa della creazione dell'indice
-      const sortedAssets = fetchedAssets.sort((a, b) => {
-          const dateA = a.purchaseDate ? new Date(a.purchaseDate).getTime() : 0;
-          const dateB = b.purchaseDate ? new Date(b.purchaseDate).getTime() : 0;
-          return dateB - dateA;
-      });
-      setAssets(sortedAssets);
+      setAssets(fetchedAssets);
     } catch (error: any) {
       console.error("Errore nel recupero degli asset:", error);
       toast({
         title: "Errore",
-        description: error.message.includes("indexes?create_composite")
-          ? "Indice Firestore mancante. Crealo dalla console di Firebase per ottimizzare le query."
-          : "Impossibile caricare i dati del portafoglio.",
+        description: "Impossibile caricare i dati del portafoglio.",
         variant: "destructive",
       });
     } finally {

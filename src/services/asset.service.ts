@@ -11,6 +11,7 @@ import {
   Timestamp,
   query,
   where,
+  orderBy,
   DocumentSnapshot,
   QueryDocumentSnapshot,
 } from 'firebase/firestore';
@@ -42,8 +43,7 @@ export const getAssets = async (): Promise<Asset[]> => {
     return [];
   }
   const assetsCollection = collection(db, 'assets');
-  // Rimuovo l'ordinamento per evitare l'errore dell'indice mancante
-  const q = query(assetsCollection, where("userId", "==", user.uid));
+  const q = query(assetsCollection, where("userId", "==", user.uid), orderBy("purchaseDate", "desc"));
   const assetSnapshot = await getDocs(q);
   const assetList = assetSnapshot.docs.map(fromFirestore);
   return assetList;
