@@ -8,7 +8,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Link from 'next/link';
-import { Leaf, AlertCircle } from 'lucide-react';
+import Image from 'next/image';
+import { AlertCircle } from 'lucide-react';
 
 import { auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
@@ -54,7 +55,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
             <div className="flex justify-center items-center mb-4">
-                <Leaf className="h-8 w-8 text-primary" />
+                <Image src="/logo.png" alt="Folium Logo" width={32} height={32} />
             </div>
             <CardTitle className="text-2xl font-bold">Bentornato in Folium</CardTitle>
             <CardDescription>Inserisci le tue credenziali per accedere al tuo portafoglio.</CardDescription>
