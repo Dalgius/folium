@@ -164,7 +164,7 @@ export default function Home() {
         <header className="mb-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
              <div className="flex items-center gap-3">
-                <Image src="/logo.png" alt="Folium Logo" width={32} height={32} />
+                <Image src="/logo.png" alt="Folium Logo" width={40} height={40} />
                 <div>
                   <h1 className="text-3xl font-bold text-primary font-headline tracking-tight">Folium</h1>
                   {user && <p className="text-sm text-muted-foreground">Bentornato, {user.email}</p>}
@@ -236,7 +236,7 @@ export default function Home() {
           </section>
         ) : (
           <div className="text-center py-20 px-6 border-2 border-dashed border-border rounded-lg">
-            <Image src="/logo.png" alt="Folium Logo" width={48} height={48} className="mx-auto opacity-50" />
+            <Image src="/logo.png" alt="Folium Logo" width={64} height={64} className="mx-auto opacity-50" />
             <h2 className="mt-4 text-xl font-semibold text-foreground">Il tuo portafoglio è vuoto</h2>
             <p className="mt-2 text-sm text-muted-foreground">Aggiungi il tuo primo asset per iniziare a tracciare i tuoi investimenti.</p>
             <div className="mt-6">
@@ -252,5 +252,3 @@ export default function Home() {
     </div>
   );
 }
-
-    

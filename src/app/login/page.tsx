@@ -55,7 +55,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
             <div className="flex justify-center items-center mb-4">
-                <Image src="/logo.png" alt="Folium Logo" width={32} height={32} />
+                <Image src="/logo.png" alt="Folium Logo" width={48} height={48} />
             </div>
             <CardTitle className="text-2xl font-bold">Bentornato in Folium</CardTitle>
             <CardDescription>Inserisci le tue credenziali per accedere al tuo portafoglio.</CardDescription>

@@ -55,7 +55,7 @@ export default function SignupPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
             <div className="flex justify-center items-center mb-4">
-                <Image src="/logo.png" alt="Folium Logo" width={32} height={32} />
+                <Image src="/logo.png" alt="Folium Logo" width={48} height={48} />
             </div>
             <CardTitle className="text-2xl font-bold">Crea il tuo Account</CardTitle>
             <CardDescription>Registrati per iniziare a tracciare il tuo portafoglio in modo sicuro.</CardDescription>
