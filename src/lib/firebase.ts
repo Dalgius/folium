@@ -2,18 +2,6 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
-// Aggiungo un controllo di validazione per le variabili d'ambiente.
-// Questo aiuterà a diagnosticare problemi di configurazione.
-if (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
-  throw new Error(
-    "ERRORE CRITICO: NEXT_PUBLIC_FIREBASE_API_KEY non trovata. " +
-    "Controlla i seguenti punti:\n" +
-    "1. Esiste un file `.env` nella cartella principale del progetto?\n" +
-    "2. Il file `.env` contiene la riga 'NEXT_PUBLIC_FIREBASE_API_KEY=...' con la tua chiave?\n" +
-    "3. Hai riavviato il server di sviluppo dopo aver creato o modificato il file `.env`?"
-  );
-}
-
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -22,6 +10,33 @@ const firebaseConfig = {
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
+
+const keyMap: { [key: string]: string } = {
+    apiKey: 'NEXT_PUBLIC_FIREBASE_API_KEY',
+    authDomain: 'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
+    projectId: 'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
+    storageBucket: 'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET',
+    messagingSenderId: 'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
+    appId: 'NEXT_PUBLIC_FIREBASE_APP_ID'
+};
+
+const missingKeys = (Object.keys(firebaseConfig) as Array<keyof typeof firebaseConfig>)
+    .filter(key => !firebaseConfig[key])
+    .map(key => keyMap[key]);
+
+if (missingKeys.length > 0) {
+    throw new Error(
+        `ERRORE CRITICO DI CONFIGURAZIONE FIREBASE:\n\n` +
+        `Impossibile inizializzare Firebase. Le seguenti variabili d'ambiente sono mancanti o non accessibili:\n` +
+        `- ${missingKeys.join('\n- ')}\n\n` +
+        `PER FAVORE, CONTROLLA QUESTI PUNTI:\n` +
+        `1. Esiste un file .env nella cartella principale del progetto?\n` +
+        `2. Hai compilato TUTTE le variabili d'ambiente in .env con i valori del tuo progetto Firebase?\n` +
+        `3. IMPORTANTE: Hai riavviato il server di sviluppo (es. 'npm run dev') DOPO aver modificato il file .env?\n` +
+        `4. Le variabili iniziano tutte con "NEXT_PUBLIC_"?\n`
+    );
+}
+
 
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
