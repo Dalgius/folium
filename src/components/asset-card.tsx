@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Asset } from "@/types";
@@ -24,6 +23,7 @@ import {
 import { AssetIcon, PerformanceIndicator } from "./asset-icons";
 import { Trash2, Pencil } from "lucide-react";
 import { UpdateAssetDialog } from "./update-asset-dialog";
+import { UpdateBankAccountDialog } from "./update-bank-account-dialog";
 
 interface AssetCardProps {
   asset: Asset;
@@ -69,7 +69,14 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
           </div>
         </div>
         <div className="flex w-full shrink-0 flex-wrap justify-end gap-2 sm:w-auto sm:flex-nowrap">
-            {asset.type !== 'Conto Bancario' && (
+            {asset.type === 'Conto Bancario' ? (
+                <UpdateBankAccountDialog asset={asset} onAssetUpdate={onUpdate}>
+                    <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
+                        <Pencil className="mr-2 h-3 w-3" />
+                        Modifica
+                    </Button>
+                </UpdateBankAccountDialog>
+            ) : (
                 <UpdateAssetDialog asset={asset} onAssetUpdate={onUpdate}>
                     <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
                         <Pencil className="mr-2 h-3 w-3" />
