@@ -36,48 +36,37 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
   const performance = asset.initialValue !== 0 
     ? ((asset.currentValue - asset.initialValue) / asset.initialValue) * 100 
     : 0;
-  const valueChange = asset.currentValue - asset.initialValue;
 
   return (
     <Card className="flex flex-col transition-all hover:shadow-lg">
-      <CardHeader className="flex-row items-start gap-4 space-y-0">
-        <div className="flex-shrink-0">
-          <AssetIcon type={asset.type} className="h-8 w-8 text-primary" />
+      <CardHeader className="flex-row items-center justify-between gap-4 space-y-0 p-4">
+        <div className="flex items-center gap-3">
+          <AssetIcon type={asset.type} className="h-7 w-7 text-primary" />
+          <CardTitle className="text-lg font-headline">{asset.name}</CardTitle>
         </div>
-        <div className="flex-1">
-          <CardTitle className="text-xl font-headline">{asset.name}</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent className="flex-grow space-y-4">
-        <div>
-          <p className="text-sm text-muted-foreground">Valore Corrente</p>
-          <p className="text-3xl font-bold text-foreground">
-            {formatCurrency(asset.currentValue, asset.currency)}
-          </p>
-        </div>
-        <div className="flex items-center justify-between rounded-lg bg-muted p-3">
-          <div className="text-sm font-medium">Performance</div>
-          <div className="flex items-center gap-2">
-            <PerformanceIndicator performance={performance} />
-            <div className="flex flex-col items-end">
-              <span className={cn(
+        <div className="flex items-center gap-1.5 text-right">
+            <PerformanceIndicator performance={performance} className="h-4 w-4" />
+            <span className={cn(
                 "font-semibold",
                 performance > 0 ? "text-green-600" : performance < 0 ? "text-red-600" : "text-muted-foreground"
-              )}>
+            )}>
                 {performance.toFixed(2)}%
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {formatCurrency(valueChange, asset.currency)}
-              </span>
-            </div>
-          </div>
+            </span>
+        </div>
+      </CardHeader>
+      <CardContent className="flex-grow p-4 pt-0">
+        <div className="text-2xl font-bold text-foreground">
+          {formatCurrency(asset.currentValue, asset.currency)}
+        </div>
+        <div className="text-xs text-muted-foreground">
+            Valore corrente
         </div>
       </CardContent>
-      <CardFooter className="flex justify-end gap-2">
+      <CardFooter className="flex justify-end gap-2 p-4 pt-0">
         {asset.type !== 'Conto Bancario' && (
             <UpdateAssetDialog asset={asset} onAssetUpdate={onUpdate}>
                 <Button variant="outline" size="sm">
-                    <Pencil className="mr-2 h-4 w-4" />
+                    <Pencil className="mr-2 h-3 w-3" />
                     Modifica
                 </Button>
             </UpdateAssetDialog>
@@ -85,7 +74,7 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button variant="destructive" size="sm">
-              <Trash2 className="mr-2 h-4 w-4" />
+              <Trash2 className="mr-2 h-3 w-3" />
               Elimina
             </Button>
           </AlertDialogTrigger>
