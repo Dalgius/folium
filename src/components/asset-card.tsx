@@ -1,5 +1,7 @@
+
 "use client";
 
+import { useState } from "react";
 import { Asset } from "@/types";
 import { formatCurrency, cn } from "@/lib/utils";
 import {
@@ -21,9 +23,10 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { AssetIcon, PerformanceIndicator } from "./asset-icons";
-import { Trash2, Pencil } from "lucide-react";
+import { Trash2, Pencil, ChevronDown } from "lucide-react";
 import { UpdateAssetDialog } from "./update-asset-dialog";
 import { UpdateBankAccountDialog } from "./update-bank-account-dialog";
+import { Separator } from "@/components/ui/separator";
 
 interface AssetCardProps {
   asset: Asset;
@@ -32,6 +35,8 @@ interface AssetCardProps {
 }
 
 export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   const performance = asset.initialValue !== 0 
     ? ((asset.currentValue - asset.initialValue) / asset.initialValue) * 100 
     : 0;
@@ -41,73 +46,93 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
   );
 
   return (
-    <Card className="flex flex-col transition-all hover:shadow-lg">
-      <CardHeader className="flex-row items-start justify-between gap-4 space-y-0 p-4 pb-2">
-        <div className="flex items-center gap-3">
-          <AssetIcon type={asset.type} className="h-7 w-7 text-primary" />
-          <CardTitle className="text-lg font-headline">{asset.name}</CardTitle>
-        </div>
-        <div className="flex flex-col items-end">
-            <div className="flex items-center gap-1.5">
-                <PerformanceIndicator performance={performance} className="h-4 w-4" />
-                <span className={cn("font-semibold", performanceColor)}>
-                    {performance.toFixed(2)}%
-                </span>
+    <Card className={cn(
+        "flex flex-col overflow-hidden transition-all duration-300",
+        isExpanded ? "shadow-lg" : "shadow-sm hover:shadow-md"
+    )}>
+      <div onClick={() => setIsExpanded(!isExpanded)} className="cursor-pointer">
+        <CardHeader className="flex-row items-start justify-between gap-4 space-y-0 p-4 pb-2">
+            <div className="flex items-center gap-3">
+              <AssetIcon type={asset.type} className="h-7 w-7 text-primary" />
+              <CardTitle className="text-lg font-headline">{asset.name}</CardTitle>
             </div>
-            <span className={cn("text-sm font-medium", performanceColor)}>
-              {(absoluteGain >= 0 ? '+' : '') + formatCurrency(absoluteGain, asset.currency)}
-            </span>
-        </div>
-      </CardHeader>
-      <CardContent className="flex flex-grow flex-col items-start gap-4 p-4 pt-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <div className="text-2xl font-bold text-foreground">
-            {formatCurrency(asset.currentValue, asset.currency)}
+            <div className="flex items-center gap-2">
+                <div className="flex flex-col items-end">
+                    <div className="flex items-center gap-1.5">
+                        <PerformanceIndicator performance={performance} className="h-4 w-4" />
+                        <span className={cn("font-semibold", performanceColor)}>
+                            {performance.toFixed(2)}%
+                        </span>
+                    </div>
+                    <span className={cn("text-sm font-medium", performanceColor)}>
+                      {(absoluteGain >= 0 ? '+' : '') + formatCurrency(absoluteGain, asset.currency)}
+                    </span>
+                </div>
+                <ChevronDown className={cn("h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200", isExpanded && "rotate-180")} />
+            </div>
+        </CardHeader>
+        <CardContent className="p-4 pt-2">
+          <div>
+            <div className="text-2xl font-bold text-foreground">
+              {formatCurrency(asset.currentValue, asset.currency)}
+            </div>
+            <div className="text-xs text-muted-foreground">
+                Valore corrente
+            </div>
           </div>
-          <div className="text-xs text-muted-foreground">
-              Valore corrente
+        </CardContent>
+      </div>
+      
+      <div className={cn(
+        "transition-all duration-300 ease-in-out",
+        isExpanded ? "max-h-40 opacity-100" : "max-h-0 opacity-0"
+      )}>
+        <div 
+          className="px-4 pb-4"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Separator className="mb-4" />
+          <div className="flex w-full justify-end gap-2">
+              {asset.type === 'Conto Bancario' ? (
+                  <UpdateBankAccountDialog asset={asset} onAssetUpdate={onUpdate}>
+                      <Button variant="outline" size="sm">
+                          <Pencil className="mr-2 h-3 w-3" />
+                          Modifica
+                      </Button>
+                  </UpdateBankAccountDialog>
+              ) : (
+                  <UpdateAssetDialog asset={asset} onAssetUpdate={onUpdate}>
+                      <Button variant="outline" size="sm">
+                          <Pencil className="mr-2 h-3 w-3" />
+                          Modifica
+                      </Button>
+                  </UpdateAssetDialog>
+              )}
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm">
+                    <Trash2 className="mr-2 h-3 w-3" />
+                    Elimina
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Sei sicuro?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Questa azione non può essere annullata. Questo eliminerà permanentemente il tuo asset &quot;{asset.name}&quot; dal tuo portafoglio.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Annulla</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => onDelete(asset.id)}>
+                      Continua
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
           </div>
         </div>
-        <div className="flex w-full shrink-0 flex-wrap justify-end gap-2 sm:w-auto sm:flex-nowrap">
-            {asset.type === 'Conto Bancario' ? (
-                <UpdateBankAccountDialog asset={asset} onAssetUpdate={onUpdate}>
-                    <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
-                        <Pencil className="mr-2 h-3 w-3" />
-                        Modifica
-                    </Button>
-                </UpdateBankAccountDialog>
-            ) : (
-                <UpdateAssetDialog asset={asset} onAssetUpdate={onUpdate}>
-                    <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
-                        <Pencil className="mr-2 h-3 w-3" />
-                        Modifica
-                    </Button>
-                </UpdateAssetDialog>
-            )}
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm" className="flex-1 sm:flex-none">
-                  <Trash2 className="mr-2 h-3 w-3" />
-                  Elimina
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Sei sicuro?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Questa azione non può essere annullata. Questo eliminerà permanentemente il tuo asset &quot;{asset.name}&quot; dal tuo portafoglio.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Annulla</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => onDelete(asset.id)}>
-                    Continua
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-        </div>
-      </CardContent>
+      </div>
     </Card>
   );
 }
