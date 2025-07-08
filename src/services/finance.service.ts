@@ -1,7 +1,7 @@
 
 'use server';
 import yahooFinance from 'yahoo-finance2';
-import { AssetType } from '@/types';
+import { AssetType, type Currency } from '@/types';
 
 export interface SearchResult {
   ticker: string;
@@ -79,6 +79,26 @@ export async function getQuote(ticker: string): Promise<Quote | null> {
         return null;
     } catch (error) {
         console.error(`Error getting quote for ${ticker}:`, error);
+        return null;
+    }
+}
+
+export async function getExchangeRate(from: Currency, to: Currency): Promise<number | null> {
+    if (from === to) return 1;
+    try {
+        const ticker = `${from}${to}=X`;
+        const result = await yahooFinance.quote(ticker);
+        if (result && result.regularMarketPrice) {
+            return result.regularMarketPrice;
+        }
+        console.warn(`Could not find exchange rate for ticker: ${ticker}`);
+        return null;
+    } catch (error) {
+        if (error instanceof Error && (error.message.includes('404') || error.message.includes('Not Found'))) {
+             console.warn(`Exchange rate not found for ${from} to ${to} (ticker: ${ticker})`);
+        } else {
+            console.error(`Error getting exchange rate for ${from} to ${to}:`, error);
+        }
         return null;
     }
 }
