@@ -354,7 +354,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
             </div>
             <div className="flex-1 w-full flex items-center justify-center min-h-0">
                  {pieData.length > 0 ? (
-                    <ChartContainer config={pieChartConfig} className="w-full h-full min-h-[200px]">
+                    <ChartContainer config={pieChartConfig} className="w-full h-[250px]">
                         <PieChart>
                             <ChartTooltip
                                 cursor={false}
