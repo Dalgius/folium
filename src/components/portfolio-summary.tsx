@@ -6,7 +6,7 @@ import { formatCurrency, cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Pie, PieChart } from "recharts";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Pie, PieChart, Sector } from "recharts";
 import { useState, useEffect, useMemo } from "react";
 import { getExchangeRate, getHistoricalData, HistoricalDataPoint } from "@/services/finance.service";
 import { TrendingUp, TrendingDown, Minus, Wallet } from "lucide-react";
@@ -271,8 +271,8 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
           <Skeleton className="h-6 w-3/4" />
         </CardHeader>
         <CardContent className="p-6 pt-0">
-          <div className="flex flex-col lg:flex-row gap-8">
-              <div className="lg:w-3/4 w-full space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 w-full space-y-4">
                   <div className="space-y-2">
                     <Skeleton className="h-4 w-1/3" />
                     <Skeleton className="h-8 w-1/2" />
@@ -280,7 +280,7 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
                   <Skeleton className="h-[250px] w-full" />
                   <Skeleton className="h-9 w-[280px]" />
               </div>
-              <div className="lg:w-1/4 w-full space-y-4">
+              <div className="lg:col-span-1 w-full space-y-4">
                   <div className="space-y-2">
                     <Skeleton className="h-4 w-2/3" />
                     <Skeleton className="h-8 w-1/2" />
@@ -307,13 +307,32 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
     );
   }
 
+  const DonutTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="rounded-lg border bg-background p-2 shadow-sm">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col">
+              <span className="text-sm text-muted-foreground">{data.label}</span>
+              <span className="font-bold text-foreground">
+                {formatCurrency(data.value, 'EUR')}
+              </span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <Card>
       <CardHeader className="p-6">
         <CardTitle>Riepilogo Portafoglio</CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-col lg:flex-row gap-8 p-6 pt-0">
-        <div className="flex flex-col items-start gap-4 lg:w-3/4">
+      <CardContent className="grid grid-cols-1 lg:grid-cols-3 gap-8 p-6 pt-0">
+        <div className="flex flex-col items-start gap-4 lg:col-span-2">
             <h3 className="text-lg font-semibold font-headline">Andamento Titoli (Azioni & ETF)</h3>
             
             {isAreaChartLoading ? (
@@ -328,7 +347,7 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
             ) : (
                 <>
                     <div>
-                      <p className="text-sm text-muted-foreground">{hoverDate || 'Valore Corrente (EUR)'}</p>
+                      <p className="text-sm text-muted-foreground">{hoverDate || 'Valore Corrente'}</p>
                       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
                         <p className="text-3xl font-bold text-primary">
                           {formatCurrency(securitiesDisplayValue, 'EUR')}
@@ -408,31 +427,23 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
             )}
         </div>
 
-        <div className="flex flex-col gap-4 lg:w-1/4 lg:border-l lg:pl-8 lg:pt-0 border-transparent pt-6">
+        <div className="flex flex-col gap-4 lg:col-span-1 lg:border-l lg:pl-8">
             <div className="flex-shrink-0">
                 <h3 className="text-lg font-semibold font-headline">Patrimonio Complessivo</h3>
                 <div>
-                    <p className="text-sm text-muted-foreground">Valore Totale (EUR)</p>
+                    <p className="text-sm text-muted-foreground">Valore Totale</p>
                      <p className="text-3xl font-bold text-primary">
                         {formatCurrency(totalPatrimony, 'EUR')}
                     </p>
                 </div>
             </div>
-            <div className="w-full flex flex-col items-center justify-center pt-2">
+            <div className="w-full flex-grow flex flex-col items-center justify-center pt-2">
                  {pieData.length > 0 ? (
                     <ChartContainer config={pieChartConfig} className="w-full h-[250px]">
                         <PieChart>
                             <ChartTooltip
                                 cursor={false}
-                                content={<ChartTooltipContent
-                                    hideLabel
-                                    formatter={(value, name, props) => (
-                                        <div className="flex flex-col items-start">
-                                            <span>{props.payload.label}</span>
-                                            <span className="font-bold">{formatCurrency(value as number, 'EUR')}</span>
-                                        </div>
-                                    )}
-                                />}
+                                content={<DonutTooltip />}
                             />
                             <Pie
                                 data={pieData}
@@ -461,3 +472,4 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
 }
 
     
+
