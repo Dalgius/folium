@@ -67,7 +67,7 @@ export interface Quote {
     dailyChangePercent?: number;
 }
 
-export async function getQuote(ticker: string): Promise<Quote | null> {
+async function getQuoteViaQuoteEndpoint(ticker: string): Promise<Quote | null> {
     if (!ticker) return null;
     
     try {
@@ -132,12 +132,55 @@ export async function getQuote(ticker: string): Promise<Quote | null> {
 
     } catch (error) {
         if (error instanceof Error && (error.message.includes('404') || error.message.includes('Not Found'))) {
-            console.warn(`Ticker not found: ${ticker}`);
+            console.warn(`(Primary) Ticker not found: ${ticker}`);
         } else {
-            console.error(`Error getting quote for ${ticker}:`, error);
+            console.error(`(Primary) Error getting quote for ${ticker}:`, error);
         }
         return null;
     }
+}
+
+async function getQuoteViaSummaryEndpoint(ticker: string): Promise<Quote | null> {
+    try {
+        const result = await yahooFinance.quoteSummary(ticker, {
+            modules: ['price']
+        });
+        
+        const priceData = result.price;
+        if (!priceData || !priceData.regularMarketPrice || !priceData.currency) {
+            return null;
+        }
+        
+        let dailyChangePercent: number | undefined;
+        if (priceData.regularMarketChangePercent !== undefined) {
+            const changePercent = priceData.regularMarketChangePercent;
+            // Smart percentage detection
+            dailyChangePercent = Math.abs(changePercent) <= 1 ? changePercent * 100 : changePercent;
+        }
+
+        return {
+            price: priceData.regularMarketPrice,
+            currency: priceData.currency,
+            name: priceData.longName || priceData.shortName || ticker,
+            dailyChange: priceData.regularMarketChange,
+            dailyChangePercent: dailyChangePercent,
+        };
+    } catch (error) {
+        console.error(`Alternative quote method failed for ${ticker}:`, error);
+        return null;
+    }
+}
+
+export async function getQuote(ticker: string): Promise<Quote | null> {
+    const primaryQuote = await getQuoteViaQuoteEndpoint(ticker);
+    if (primaryQuote) {
+        return primaryQuote;
+    }
+    
+    console.warn(`Primary quote method failed for ${ticker}, trying alternative.`);
+    const secondaryQuote = await getQuoteViaSummaryEndpoint(ticker);
+    
+    return secondaryQuote;
 }
 
 
