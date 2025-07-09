@@ -9,6 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Link from 'next/link';
 import { AlertCircle } from 'lucide-react';
+import Image from 'next/image';
 
 import { auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
@@ -54,8 +55,9 @@ export default function LoginPage() {
     <div className="flex items-center justify-center min-h-screen bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-            <div className="flex justify-center items-center mb-4">
-                <FoliumLogo className="h-10 w-auto text-primary" />
+            <div className="flex justify-center items-center gap-3 mb-4">
+                <Image src="/logo.png" alt="Folium Logo" width={40} height={40} data-ai-hint="logo" />
+                <FoliumLogo className="h-8 w-auto text-primary" />
             </div>
             <CardTitle className="text-2xl font-bold">Bentornato</CardTitle>
             <CardDescription>Inserisci le tue credenziali per accedere al tuo portafoglio.</CardDescription>

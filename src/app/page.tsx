@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { Asset, AssetType } from '@/types';
 import { PlusCircle, SearchX, RefreshCw, LogOut } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
@@ -174,9 +175,12 @@ export default function Home() {
       <main className="container mx-auto p-4 sm:p-6 lg:p-8">
         <header className="mb-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-            <div>
-              <FoliumLogo className="h-10 w-auto text-primary" />
-              {user && <p className="text-sm text-muted-foreground mt-2">Bentornato, {user.email}</p>}
+             <div>
+                <div className="flex items-center gap-3">
+                    <Image src="/logo.png" alt="Folium Logo" width={40} height={40} data-ai-hint="logo" />
+                    <FoliumLogo className="h-8 w-auto text-primary" />
+                </div>
+                {user && <p className="text-sm text-muted-foreground mt-2">Bentornato, {user.email}</p>}
             </div>
             <div className="flex items-center gap-2">
                 <Button variant="outline" onClick={handleRefreshAllAssets} disabled={isLoading || assets.length === 0}>
@@ -244,7 +248,10 @@ export default function Home() {
           </section>
         ) : (
           <div className="text-center py-20 px-6 border-2 border-dashed border-border rounded-lg">
-            <FoliumLogo className="h-16 w-auto mx-auto text-muted-foreground opacity-50" />
+            <div className="flex items-center justify-center gap-4 mx-auto w-fit">
+                <Image src="/logo.png" alt="Folium Logo" width={64} height={64} className="opacity-50" data-ai-hint="logo" />
+                <FoliumLogo className="h-12 w-auto text-muted-foreground opacity-50" />
+            </div>
             <h2 className="mt-4 text-xl font-semibold text-foreground">Il tuo portafoglio è vuoto</h2>
             <p className="mt-2 text-sm text-muted-foreground">Aggiungi il tuo primo asset per iniziare a tracciare i tuoi investimenti.</p>
             <div className="mt-6">
