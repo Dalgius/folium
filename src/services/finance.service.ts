@@ -96,52 +96,61 @@ async function getQuoteViaQuoteEndpoint(ticker: string): Promise<Quote | null> {
             'regularMarketPreviousClose',
             'regularMarketChange',
             'regularMarketChangePercent',
-            'marketState'
+            'marketState',
+            'preMarketPrice',
+            'postMarketPrice',
         ]});
         
-        if (!result || !result.regularMarketPrice || !result.currency) {
+        if (!result || !result.currency) {
             console.warn(`Incomplete quote data for ${ticker}`, result);
             return null;
         }
         
         const name = result.longName || result.shortName || ticker;
-        const price = result.regularMarketPrice;
         const currency = result.currency;
+        let price = result.regularMarketPrice;
+
+        if (result.marketState === 'PRE' && result.preMarketPrice) {
+            price = result.preMarketPrice;
+        } else if (result.marketState === 'POST' && result.postMarketPrice) {
+            price = result.postMarketPrice;
+        }
+        
+        if (!price) {
+            console.warn(`Could not determine a valid price for ${ticker}`, result);
+            return null;
+        }
 
         let dailyChange: number | undefined;
-        let dailyChangePercent: number | undefined;
+        let dailyChangePercent: number | undefined; // Always as decimal
 
-        // Method 1: Calculate from previous close (most reliable)
+        // Method 1 (Preferred): Calculate from previous close. Most reliable.
         if (result.regularMarketPreviousClose && result.regularMarketPreviousClose > 0) {
             dailyChange = price - result.regularMarketPreviousClose;
-            dailyChangePercent = (dailyChange / result.regularMarketPreviousClose);
-        }
-        // Method 2: Use pre-calculated values as a fallback
+            dailyChangePercent = dailyChange / result.regularMarketPreviousClose;
+        } 
+        // Method 2 (Fallback): Use pre-calculated values from API.
         else if (result.regularMarketChange !== undefined && result.regularMarketChangePercent !== undefined) {
             dailyChange = result.regularMarketChange;
             dailyChangePercent = normalizePercentage(result.regularMarketChangePercent);
-        }
-        // Method 3: Fallback to historical data
+        } 
+        // Method 3 (Last Resort): Fallback to historical data to find previous close.
         else {
             try {
                 const historical = await getHistoricalData(ticker, getPreviousTradingDay());
                 if (historical.length > 0) {
                     const lastClose = historical[historical.length - 1].close;
-                    dailyChange = price - lastClose;
-                    dailyChangePercent = lastClose > 0 ? (dailyChange / lastClose) : 0;
+                    if(lastClose > 0) {
+                        dailyChange = price - lastClose;
+                        dailyChangePercent = dailyChange / lastClose;
+                    }
                 }
             } catch (histError) {
                 console.warn(`Historical data fallback failed for ${ticker}`, histError);
             }
         }
 
-        return {
-            price,
-            currency,
-            name,
-            dailyChange,
-            dailyChangePercent,
-        };
+        return { price, currency, name, dailyChange, dailyChangePercent };
 
     } catch (error) {
         if (error instanceof Error && (error.message.includes('404') || error.message.includes('Not Found'))) {
