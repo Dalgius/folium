@@ -201,10 +201,6 @@ export default function Home() {
     { label: 'ETF', value: 'ETF' },
     { label: 'Conti Bancari', value: 'Conto Bancario' },
   ];
-  
-  const getFilterLabel = (filterValue: AssetType | 'Tutti') => {
-    return filterOptions.find(opt => opt.value === filterValue)?.label || 'Asset';
-  }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -272,10 +268,7 @@ export default function Home() {
           renderSkeletons()
         ) : assets.length > 0 ? (
           <section>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold text-foreground font-headline">
-                  {getFilterLabel(activeFilter)}
-              </h2>
+            <div className="flex items-center justify-end mb-4">
               <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-1 rounded-md">
                   {filteredAssets.length} {filteredAssets.length === 1 ? 'risultato' : 'risultati'}
               </span>
@@ -295,7 +288,7 @@ export default function Home() {
                 <div className="text-center py-20 px-6 border-2 border-dashed border-border rounded-lg">
                     <SearchX className="mx-auto h-12 w-12 text-muted-foreground" />
                     <h2 className="mt-4 text-xl font-semibold text-foreground">Nessun asset trovato</h2>
-                    <p className="mt-2 text-sm text-muted-foreground">Non ci sono asset che corrispondono al filtro &quot;{getFilterLabel(activeFilter)}&quot;.</p>
+                    <p className="mt-2 text-sm text-muted-foreground">Non ci sono asset che corrispondono ai filtri selezionati.</p>
                 </div>
             )}
           </section>
