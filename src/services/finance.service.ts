@@ -98,16 +98,14 @@ async function getQuoteViaQuoteEndpoint(ticker: string): Promise<Quote | null> {
         // Method 1: Calculate from previous close (most reliable)
         if (result.regularMarketPreviousClose && result.regularMarketPreviousClose > 0) {
             dailyChange = price - result.regularMarketPreviousClose;
-            dailyChangePercent = (dailyChange / result.regularMarketPreviousClose) * 100;
+            dailyChangePercent = (dailyChange / result.regularMarketPreviousClose);
         }
         // Method 2: Use pre-calculated values as a fallback
         else if (result.regularMarketChange !== undefined && result.regularMarketChangePercent !== undefined) {
             dailyChange = result.regularMarketChange;
-            // Handle both decimal (0.05) and percentage (5) formats
             const changePercent = result.regularMarketChangePercent;
-            dailyChangePercent = Math.abs(changePercent) < 1 
-                ? changePercent * 100 
-                : changePercent;
+            // Normalize to decimal format, as API can return 2.5 or 0.025
+            dailyChangePercent = Math.abs(changePercent) > 1 ? changePercent / 100 : changePercent;
         }
         // Method 3: Fallback to historical data
         else {
@@ -116,7 +114,7 @@ async function getQuoteViaQuoteEndpoint(ticker: string): Promise<Quote | null> {
                 if (historical.length > 0) {
                     const lastClose = historical[historical.length - 1].close;
                     dailyChange = price - lastClose;
-                    dailyChangePercent = (dailyChange / lastClose) * 100;
+                    dailyChangePercent = (dailyChange / lastClose);
                 }
             } catch (histError) {
                 console.warn(`Historical data fallback failed for ${ticker}`, histError);
@@ -128,7 +126,7 @@ async function getQuoteViaQuoteEndpoint(ticker: string): Promise<Quote | null> {
             currency,
             name,
             dailyChange,
-            dailyChangePercent,
+            dailyChangePercent, // Always returned as a decimal e.g. 0.025 for 2.5%
         };
 
     } catch (error) {
@@ -152,11 +150,11 @@ async function getQuoteViaSummaryEndpoint(ticker: string): Promise<Quote | null>
             return null;
         }
         
-        let dailyChangePercent: number | undefined;
+        let dailyChangePercentDecimal: number | undefined;
         if (priceData.regularMarketChangePercent !== undefined) {
             const changePercent = priceData.regularMarketChangePercent;
-            // Smart percentage detection
-            dailyChangePercent = Math.abs(changePercent) <= 1 ? changePercent * 100 : changePercent;
+            // Normalize to decimal format
+            dailyChangePercentDecimal = Math.abs(changePercent) > 1 ? changePercent / 100 : changePercent;
         }
 
         return {
@@ -164,7 +162,7 @@ async function getQuoteViaSummaryEndpoint(ticker: string): Promise<Quote | null>
             currency: priceData.currency,
             name: priceData.longName || priceData.shortName || ticker,
             dailyChange: priceData.regularMarketChange,
-            dailyChangePercent: dailyChangePercent,
+            dailyChangePercent: dailyChangePercentDecimal,
         };
     } catch (error) {
         console.error(`Alternative quote method failed for ${ticker}:`, error);
@@ -227,9 +225,6 @@ export async function getHistoricalData(ticker: string, startDate: string): Prom
 // Helper function to get previous trading day date string
 function getPreviousTradingDay(): string {
     const date = new Date();
-    // If today is Sunday(0), go back to Friday (subtract 2 days)
-    // If today is Saturday(6), go back to Friday (subtract 1 day)
-    // If today is Monday(1), go back to Friday (subtract 3 days)
     const dayOfWeek = date.getDay(); // Sunday - 0, Monday - 1, ..., Saturday - 6
     let daysToSubtract = 1; // Default for Tue-Fri
     if (dayOfWeek === 0) { // Sunday
