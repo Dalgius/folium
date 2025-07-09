@@ -56,7 +56,7 @@ export default function SignupPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
             <div className="flex justify-center items-center gap-3 mb-4">
-                <Image src="/logo.png" alt="Folium Logo" width={40} height={40} data-ai-hint="logo" />
+                <Image src="/logo.png?v=2" alt="Folium Logo" width={40} height={40} data-ai-hint="logo" />
                 <FoliumLogo className="h-8 w-auto text-primary" />
             </div>
             <CardTitle className="text-2xl font-bold">Crea il tuo Account</CardTitle>

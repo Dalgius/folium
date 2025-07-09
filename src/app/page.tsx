@@ -176,7 +176,7 @@ export default function Home() {
         <header className="mb-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
             <div className="flex items-center gap-3">
-                <Image src="/logo.png" alt="Folium Logo" width={40} height={40} data-ai-hint="logo" />
+                <Image src="/logo.png?v=2" alt="Folium Logo" width={40} height={40} data-ai-hint="logo" />
                 <div>
                     <FoliumLogo className="h-8 w-auto text-primary" />
                     {user && <p className="text-sm text-muted-foreground">Bentornato, {user.email}</p>}
@@ -249,7 +249,7 @@ export default function Home() {
         ) : (
           <div className="text-center py-20 px-6 border-2 border-dashed border-border rounded-lg">
             <div className="flex items-center justify-center gap-4 mx-auto w-fit">
-                <Image src="/logo.png" alt="Folium Logo" width={64} height={64} className="opacity-50" data-ai-hint="logo" />
+                <Image src="/logo.png?v=2" alt="Folium Logo" width={64} height={64} className="opacity-50" data-ai-hint="logo" />
                 <FoliumLogo className="h-12 w-auto text-muted-foreground opacity-50" />
             </div>
             <h2 className="mt-4 text-xl font-semibold text-foreground">Il tuo portafoglio è vuoto</h2>
