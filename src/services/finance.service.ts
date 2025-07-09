@@ -74,6 +74,7 @@ export async function getQuote(ticker: string): Promise<Quote | null> {
         const result = await yahooFinance.quote(ticker);
         
         if (!result || !result.regularMarketPrice || !result.currency || !(result.longName || result.shortName)) {
+            console.warn(`Dati del preventivo incompleti per ${ticker}`, result);
             return null;
         }
         
@@ -89,12 +90,31 @@ export async function getQuote(ticker: string): Promise<Quote | null> {
         else if (result.regularMarketChange !== undefined && result.regularMarketChangePercent !== undefined) {
             dailyChange = result.regularMarketChange;
             
-            // Smart percentage detection: if the value is between -1 and 1, it's likely a decimal
             const changePercent = result.regularMarketChangePercent;
-            if (Math.abs(changePercent) <= 1) {
-                dailyChangePercent = changePercent * 100; // Convert decimal to percentage
-            } else {
-                dailyChangePercent = changePercent; // Already a percentage
+            if (Math.abs(changePercent) <= 1) { // Likely a decimal e.g. 0.025
+                dailyChangePercent = changePercent * 100; // Convert to percentage e.g. 2.5
+            } else { // Likely already a percentage
+                dailyChangePercent = changePercent;
+            }
+        }
+        // Method 3: Fallback using historical data if other methods fail
+        else {
+            try {
+                const startDate = new Date();
+                startDate.setDate(startDate.getDate() - 7); // Look back up to 7 days to find the last trading day
+                const historical = await getHistoricalData(ticker, startDate.toISOString().split('T')[0]);
+                
+                if (historical.length > 0) {
+                    // Get the most recent closing price from the historical data
+                    const lastHistoricalPoint = historical[historical.length - 1];
+                    if (lastHistoricalPoint) {
+                        const previousClose = lastHistoricalPoint.close;
+                        dailyChange = result.regularMarketPrice - previousClose;
+                        dailyChangePercent = (dailyChange / previousClose) * 100;
+                    }
+                }
+            } catch (histError) {
+                console.warn(`Fallback ai dati storici fallito per ${ticker}`, histError);
             }
         }
 
@@ -107,7 +127,11 @@ export async function getQuote(ticker: string): Promise<Quote | null> {
         };
 
     } catch (error) {
-        console.error(`Error getting quote for ${ticker}:`, error);
+        if (error instanceof Error && (error.message.includes('404') || error.message.includes('Not Found'))) {
+            console.warn(`Ticker non trovato: ${ticker}`);
+        } else {
+            console.error(`Errore nel recupero del preventivo per ${ticker}:`, error);
+        }
         return null;
     }
 }
