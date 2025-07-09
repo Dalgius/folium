@@ -213,11 +213,11 @@ export default function Home() {
         <header className="mb-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
             <div className="flex items-center gap-3">
-                <Image src="/logo.png?v=2" alt="Folium Logo" width={40} height={40} data-ai-hint="logo" />
-                <div className="flex flex-col items-start justify-center">
-                    <FoliumLogo className="h-8 w-auto text-primary" />
-                    {user && <p className="text-sm text-muted-foreground">Bentornato, {user.email}</p>}
-                </div>
+              <Image src="/logo.png?v=2" alt="Folium Logo" width={40} height={40} data-ai-hint="logo" />
+              <div className="flex flex-col items-start justify-center">
+                  <FoliumLogo className="h-8 w-auto text-primary" />
+                  {user && <p className="text-sm text-muted-foreground">Bentornato, {user.email}</p>}
+              </div>
             </div>
             <div className="flex items-center gap-2">
                 <Button variant="outline" onClick={handleRefreshAllAssets} disabled={isLoading || assets.length === 0}>
@@ -238,34 +238,21 @@ export default function Home() {
           <PortfolioSummary assets={assets} activeFilter={activeFilter} />
         </header>
         
-        <div className="mb-6 flex flex-wrap items-center gap-2 rounded-lg border bg-card p-2">
-            {filterOptions.map((option) => (
-                <Button
-                key={option.value}
-                variant={activeFilter === option.value ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setActiveFilter(option.value)}
-                className="flex-grow sm:flex-grow-0"
-                >
-                {option.label}
-                </Button>
-            ))}
-        </div>
-
-        {isLoading ? (
-          renderSkeletons()
-        ) : assets.length > 0 ? (
-          <section>
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
-              <div className="flex items-center gap-4">
-                  <h2 className="text-2xl font-bold text-foreground font-headline">
-                      {getFilterLabel(activeFilter)}
-                  </h2>
-                  <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-1 rounded-md">
-                      {filteredAssets.length} {filteredAssets.length === 1 ? 'risultato' : 'risultati'}
-                  </span>
-              </div>
-              <Select value={sortOrder} onValueChange={setSortOrder}>
+        <div className="mb-6 flex flex-col sm:flex-row flex-wrap items-center justify-between gap-4 rounded-lg border bg-card p-3">
+            <div className="flex flex-wrap items-center gap-2">
+                {filterOptions.map((option) => (
+                    <Button
+                    key={option.value}
+                    variant={activeFilter === option.value ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setActiveFilter(option.value)}
+                    >
+                    {option.label}
+                    </Button>
+                ))}
+            </div>
+            
+            <Select value={sortOrder} onValueChange={setSortOrder}>
                 <SelectTrigger className="w-full sm:w-[240px]">
                   <SelectValue placeholder="Ordina per..." />
                 </SelectTrigger>
@@ -279,7 +266,20 @@ export default function Home() {
                   <SelectItem value="performance_desc">Performance (migliore)</SelectItem>
                   <SelectItem value="performance_asc">Performance (peggiore)</SelectItem>
                 </SelectContent>
-              </Select>
+            </Select>
+        </div>
+
+        {isLoading ? (
+          renderSkeletons()
+        ) : assets.length > 0 ? (
+          <section>
+            <div className="flex items-center gap-4 mb-4">
+              <h2 className="text-2xl font-bold text-foreground font-headline">
+                  {getFilterLabel(activeFilter)}
+              </h2>
+              <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-1 rounded-md">
+                  {filteredAssets.length} {filteredAssets.length === 1 ? 'risultato' : 'risultati'}
+              </span>
             </div>
             {filteredAssets.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
