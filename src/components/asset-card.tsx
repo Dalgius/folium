@@ -115,7 +115,7 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
                         </p>
                     )}
                     <p className={cn("text-xs", dailyPerformanceColor)}>
-                        ({(dailyGainPercent >= 0 ? '+' : '')}{(dailyGainPercent * 100).toFixed(2)}%)
+                        {(dailyGainPercent >= 0 ? '+' : '')}{(dailyGainPercent * 100).toFixed(2)}%
                     </p>
                   </>
                 )}
