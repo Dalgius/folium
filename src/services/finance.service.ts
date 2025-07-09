@@ -71,70 +71,75 @@ export async function getQuote(ticker: string): Promise<Quote | null> {
     if (!ticker) return null;
     
     try {
-        const result = await yahooFinance.quote(ticker);
+        const result = await yahooFinance.quote(ticker, { fields: [
+            'regularMarketPrice', 
+            'currency',
+            'longName',
+            'shortName',
+            'regularMarketPreviousClose',
+            'regularMarketChange',
+            'regularMarketChangePercent',
+            'marketState'
+        ]});
         
-        if (!result || !result.regularMarketPrice || !result.currency || !(result.longName || result.shortName)) {
-            console.warn(`Dati del preventivo incompleti per ${ticker}`, result);
+        if (!result || !result.regularMarketPrice || !result.currency) {
+            console.warn(`Incomplete quote data for ${ticker}`, result);
             return null;
         }
         
-        let dailyChange: number | undefined = undefined;
-        let dailyChangePercent: number | undefined = undefined;
+        const name = result.longName || result.shortName || ticker;
+        const price = result.regularMarketPrice;
+        const currency = result.currency;
 
-        // Method 1: Calculate from previous close (most reliable)
-        if (result.regularMarketPreviousClose && result.regularMarketPreviousClose > 0) {
-            dailyChange = result.regularMarketPrice - result.regularMarketPreviousClose;
-            dailyChangePercent = (dailyChange / result.regularMarketPreviousClose) * 100;
-        } 
-        // Method 2: Use Yahoo's pre-calculated values with smart percentage handling
-        else if (result.regularMarketChange !== undefined && result.regularMarketChangePercent !== undefined) {
+        // Initialize change variables
+        let dailyChange: number | undefined;
+        let dailyChangePercent: number | undefined;
+
+        // Method 1: Use pre-calculated values if market is open
+        if (result.regularMarketChange !== undefined && result.regularMarketChangePercent !== undefined) {
             dailyChange = result.regularMarketChange;
-            
-            const changePercent = result.regularMarketChangePercent;
-            if (Math.abs(changePercent) <= 1) { // Likely a decimal e.g. 0.025
-                dailyChangePercent = changePercent * 100; // Convert to percentage e.g. 2.5
-            } else { // Likely already a percentage
-                dailyChangePercent = changePercent;
-            }
+            // Handle both decimal (0.05) and percentage (5) formats
+            dailyChangePercent = Math.abs(result.regularMarketChangePercent) < 1 
+                ? result.regularMarketChangePercent * 100 
+                : result.regularMarketChangePercent;
         }
-        // Method 3: Fallback using historical data if other methods fail
+        // Method 2: Calculate from previous close if available
+        else if (result.regularMarketPreviousClose !== undefined && result.regularMarketPreviousClose > 0) {
+            dailyChange = price - result.regularMarketPreviousClose;
+            dailyChangePercent = (dailyChange / result.regularMarketPreviousClose) * 100;
+        }
+        // Method 3: Fallback to historical data
         else {
             try {
-                const startDate = new Date();
-                startDate.setDate(startDate.getDate() - 7); // Look back up to 7 days to find the last trading day
-                const historical = await getHistoricalData(ticker, startDate.toISOString().split('T')[0]);
-                
+                const historical = await getHistoricalData(ticker, getPreviousTradingDay());
                 if (historical.length > 0) {
-                    // Get the most recent closing price from the historical data
-                    const lastHistoricalPoint = historical[historical.length - 1];
-                    if (lastHistoricalPoint) {
-                        const previousClose = lastHistoricalPoint.close;
-                        dailyChange = result.regularMarketPrice - previousClose;
-                        dailyChangePercent = (dailyChange / previousClose) * 100;
-                    }
+                    const lastClose = historical[historical.length - 1].close;
+                    dailyChange = price - lastClose;
+                    dailyChangePercent = (dailyChange / lastClose) * 100;
                 }
             } catch (histError) {
-                console.warn(`Fallback ai dati storici fallito per ${ticker}`, histError);
+                console.warn(`Historical data fallback failed for ${ticker}`, histError);
             }
         }
 
         return {
-            price: result.regularMarketPrice,
-            currency: result.currency,
-            name: result.longName || result.shortName || ticker,
+            price,
+            currency,
+            name,
             dailyChange,
             dailyChangePercent,
         };
 
     } catch (error) {
         if (error instanceof Error && (error.message.includes('404') || error.message.includes('Not Found'))) {
-            console.warn(`Ticker non trovato: ${ticker}`);
+            console.warn(`Ticker not found: ${ticker}`);
         } else {
-            console.error(`Errore nel recupero del preventivo per ${ticker}:`, error);
+            console.error(`Error getting quote for ${ticker}:`, error);
         }
         return null;
     }
 }
+
 
 export async function getExchangeRate(from: Currency, to: Currency): Promise<number | null> {
     if (from === to) return 1;
@@ -172,4 +177,24 @@ export async function getHistoricalData(ticker: string, startDate: string): Prom
     console.warn(`Dati storici non trovati per ${ticker}. Potrebbe essere un ticker non valido o delistato.`, error);
     return [];
   }
+}
+
+
+// Helper function to get previous trading day date string
+function getPreviousTradingDay(): string {
+    const date = new Date();
+    // If today is Sunday(0), go back to Friday (subtract 2 days)
+    // If today is Saturday(6), go back to Friday (subtract 1 day)
+    // If today is Monday(1), go back to Friday (subtract 3 days)
+    const dayOfWeek = date.getDay(); // Sunday - 0, Monday - 1, ..., Saturday - 6
+    let daysToSubtract = 1; // Default for Tue-Fri
+    if (dayOfWeek === 0) { // Sunday
+        daysToSubtract = 2;
+    } else if (dayOfWeek === 6) { // Saturday
+        daysToSubtract = 1;
+    } else if (dayOfWeek === 1) { // Monday
+        daysToSubtract = 3;
+    }
+    date.setDate(date.getDate() - daysToSubtract);
+    return date.toISOString().split('T')[0];
 }
