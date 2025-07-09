@@ -323,37 +323,34 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
       <CardContent className="p-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 lg:gap-8">
           
-          <div className="flex flex-col gap-4 lg:col-span-2">
-            <div className="flex flex-col gap-y-2">
-                <h3 className="text-lg font-semibold font-headline">Andamento Titoli (Azioni & ETF)</h3>
-                <div>
-                  <p className="text-sm text-muted-foreground">{hoverDate || 'Valore Corrente'}</p>
-                  <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
-                    <p className="text-3xl font-bold text-primary">
-                      {formatCurrency(securitiesDisplayValue, 'EUR')}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <PerformanceIcon className={cn("h-5 w-5", performanceColor)} />
-                      <div className="flex flex-wrap items-baseline gap-x-2">
-                          <p className={cn("text-xl font-bold", performanceColor)}>
-                              {securitiesPerformance.toFixed(2)}%
-                          </p>
-                          <p className={cn("text-sm font-medium", performanceColor)}>
-                              ({securitiesValueChange >= 0 ? '+' : ''}{formatCurrency(securitiesValueChange, 'EUR')})
-                          </p>
+          <div className="flex flex-col justify-between gap-4 lg:col-span-2">
+            <div>
+                <div className="mb-4">
+                  <h3 className="text-lg font-semibold font-headline">Andamento Titoli (Azioni & ETF)</h3>
+                  <div>
+                    <p className="text-sm text-muted-foreground">{hoverDate || 'Valore Corrente'}</p>
+                    <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
+                      <p className="text-3xl font-bold text-foreground">
+                        {formatCurrency(securitiesDisplayValue)}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <PerformanceIcon className={cn("h-5 w-5", performanceColor)} />
+                        <div className="flex flex-wrap items-baseline gap-x-2">
+                            <p className={cn("text-xl font-bold", performanceColor)}>
+                                {securitiesPerformance.toFixed(2)}%
+                            </p>
+                            <p className={cn("text-sm font-medium", performanceColor)}>
+                                ({securitiesValueChange >= 0 ? '+' : ''}{formatCurrency(securitiesValueChange)})
+                            </p>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-            </div>
 
-            {isAreaChartLoading ? (
-                <div className="w-full space-y-4">
+                {isAreaChartLoading ? (
                     <Skeleton className="h-[250px] w-full" />
-                    <Skeleton className="h-9 w-[280px]" />
-                </div>
-            ) : securitiesSummary && securitiesSummary.totalCurrentValue > 0 ? (
-                <div className="flex w-full flex-col items-start gap-4">
+                ) : securitiesSummary && securitiesSummary.totalCurrentValue > 0 ? (
                     <ChartContainer config={areaChartConfig} className="w-full h-[250px]">
                         <AreaChart 
                         data={historicalChartData}
@@ -393,38 +390,38 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
                             />
                         </AreaChart>
                     </ChartContainer>
-
-                    <div className="flex flex-wrap justify-start gap-1 rounded-lg border bg-card p-1">
-                        {timePeriods.map((period) => (
-                            <Button
-                                key={period.value}
-                                variant={timePeriod === period.value ? 'default' : 'ghost'}
-                                size="sm"
-                                onClick={() => setTimePeriod(period.value)}
-                            >
-                                {period.label}
-                            </Button>
-                        ))}
+                ) : (
+                    <div className="flex h-[250px] w-full flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 text-center">
+                        <TrendingUp className="h-10 w-10 text-muted-foreground" />
+                        <p className="mt-2 text-sm font-medium">Nessun titolo nel portafoglio</p>
+                        <p className="text-xs text-muted-foreground">Aggiungi azioni o ETF per vederne l'andamento.</p>
                     </div>
-                </div>
-            ) : (
-                <div className="flex h-[314px] w-full flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 text-center">
-                    <TrendingUp className="h-10 w-10 text-muted-foreground" />
-                    <p className="mt-2 text-sm font-medium">Nessun titolo nel portafoglio</p>
-                    <p className="text-xs text-muted-foreground">Aggiungi azioni o ETF per vederne l'andamento.</p>
+                )}
+            </div>
+
+            {securitiesSummary && securitiesSummary.totalCurrentValue > 0 && (
+                <div className="flex flex-wrap justify-start gap-1 rounded-lg border bg-card p-1 self-start">
+                    {timePeriods.map((period) => (
+                        <Button
+                            key={period.value}
+                            variant={timePeriod === period.value ? 'default' : 'ghost'}
+                            size="sm"
+                            onClick={() => setTimePeriod(period.value)}
+                        >
+                            {period.label}
+                        </Button>
+                    ))}
                 </div>
             )}
           </div>
 
           <div className="flex flex-col gap-4 lg:col-span-1 lg:border-l lg:pl-8">
-            <div className="flex flex-col gap-y-2">
+            <div>
                 <h3 className="text-lg font-semibold font-headline">Patrimonio Complessivo</h3>
-                <div>
-                    <p className="text-sm text-muted-foreground">Valore Totale</p>
-                     <p className="text-3xl font-bold text-primary">
-                        {formatCurrency(totalPatrimony, 'EUR')}
-                    </p>
-                </div>
+                 <p className="text-sm text-muted-foreground">Valore Totale</p>
+                 <p className="text-3xl font-bold text-primary">
+                    {formatCurrency(totalPatrimony)}
+                </p>
             </div>
             <div className="w-full flex-grow flex flex-col items-center justify-center pt-2">
                  {pieData.length > 0 ? (
