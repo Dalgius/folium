@@ -71,15 +71,35 @@ export async function getQuote(ticker: string): Promise<Quote | null> {
     if (!ticker) return null;
     try {
         const result = await yahooFinance.quote(ticker);
-        if (result && result.regularMarketPrice && result.currency && (result.longName || result.shortName)) {
+        
+        // The most reliable calculation uses current price and previous close, as suggested.
+        if (result && result.regularMarketPrice && result.regularMarketPreviousClose && result.currency && (result.longName || result.shortName)) {
+            const currentPrice = result.regularMarketPrice;
+            const previousClose = result.regularMarketPreviousClose;
+            
+            const dailyChange = currentPrice - previousClose;
+            const dailyChangePercent = previousClose !== 0 ? (dailyChange / previousClose) : 0;
+
             return {
+                price: currentPrice,
+                currency: result.currency,
+                name: result.longName || result.shortName || ticker,
+                dailyChange: dailyChange,
+                dailyChangePercent: dailyChangePercent,
+            };
+        }
+
+        // Fallback for cases where previous close might not be available, but the API provides the change directly.
+        if (result && result.regularMarketPrice && result.currency && (result.longName || result.shortName)) {
+             return {
                 price: result.regularMarketPrice,
                 currency: result.currency,
                 name: result.longName || result.shortName || ticker,
-                dailyChange: result.regularMarketChange,
-                dailyChangePercent: result.regularMarketChangePercent,
+                dailyChange: result.regularMarketChange, // Use the API value as fallback
+                dailyChangePercent: result.regularMarketChangePercent, // Use the API value as fallback
             };
         }
+
         return null;
     } catch (error) {
         console.error(`Error getting quote for ${ticker}:`, error);
