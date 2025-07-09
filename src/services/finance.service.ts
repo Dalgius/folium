@@ -80,17 +80,16 @@ export async function getQuote(ticker: string): Promise<Quote | null> {
         let dailyChange: number | undefined = undefined;
         let dailyChangePercent: number | undefined = undefined;
 
-        // Preferred method: calculate from previous close
-        if (result.regularMarketPreviousClose) {
+        // Method 1: Calculate from previous close (most reliable)
+        if (result.regularMarketPreviousClose && result.regularMarketPreviousClose > 0) {
             dailyChange = result.regularMarketPrice - result.regularMarketPreviousClose;
-            dailyChangePercent = result.regularMarketPreviousClose !== 0 
-                ? (dailyChange / result.regularMarketPreviousClose) 
-                : 0;
+            dailyChangePercent = (dailyChange / result.regularMarketPreviousClose) * 100;
         } 
-        // Fallback method: use Yahoo's calculated values
+        // Method 2: Use Yahoo's pre-calculated values as a fallback
         else if (result.regularMarketChange !== undefined && result.regularMarketChangePercent !== undefined) {
             dailyChange = result.regularMarketChange;
-            dailyChangePercent = result.regularMarketChangePercent;
+            // The library returns a decimal (e.g., 0.025 for 2.5%), so we multiply by 100
+            dailyChangePercent = result.regularMarketChangePercent * 100;
         }
 
         return {
