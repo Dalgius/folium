@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { Asset, AssetType } from '@/types';
 import { PlusCircle, SearchX, RefreshCw, LogOut } from 'lucide-react';
@@ -19,6 +19,13 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { FoliumLogo } from '@/components/folium-logo';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 
 export default function Home() {
@@ -26,6 +33,7 @@ export default function Home() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<AssetType | 'Tutti'>('Tutti');
+  const [sortOrder, setSortOrder] = useState<string>('purchaseDate_desc');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -155,7 +163,36 @@ export default function Home() {
     </div>
   );
 
-  const filteredAssets = assets.filter(asset => 
+  const sortedAssets = useMemo(() => {
+    const calculatePerformance = (asset: Asset) => {
+      if (asset.initialValue === 0) return 0;
+      return ((asset.currentValue - asset.initialValue) / asset.initialValue);
+    };
+
+    return [...assets].sort((a, b) => {
+      switch (sortOrder) {
+        case 'purchaseDate_asc':
+          return new Date(a.purchaseDate || 0).getTime() - new Date(b.purchaseDate || 0).getTime();
+        case 'name_asc':
+          return a.name.localeCompare(b.name);
+        case 'name_desc':
+          return b.name.localeCompare(a.name);
+        case 'currentValue_desc':
+          return b.currentValue - a.currentValue;
+        case 'currentValue_asc':
+          return a.currentValue - b.currentValue;
+        case 'performance_desc':
+          return calculatePerformance(b) - calculatePerformance(a);
+        case 'performance_asc':
+          return calculatePerformance(a) - calculatePerformance(b);
+        case 'purchaseDate_desc':
+        default:
+          return new Date(b.purchaseDate || 0).getTime() - new Date(a.purchaseDate || 0).getTime();
+      }
+    });
+  }, [assets, sortOrder]);
+
+  const filteredAssets = sortedAssets.filter(asset => 
     activeFilter === 'Tutti' || asset.type === activeFilter
   );
 
@@ -219,13 +256,30 @@ export default function Home() {
           renderSkeletons()
         ) : assets.length > 0 ? (
           <section>
-            <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-foreground font-headline">
-                    {getFilterLabel(activeFilter)}
-                </h2>
-                <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-1 rounded-md">
-                    {filteredAssets.length} {filteredAssets.length === 1 ? 'risultato' : 'risultati'}
-                </span>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
+              <div className="flex items-center gap-4">
+                  <h2 className="text-2xl font-bold text-foreground font-headline">
+                      {getFilterLabel(activeFilter)}
+                  </h2>
+                  <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-1 rounded-md">
+                      {filteredAssets.length} {filteredAssets.length === 1 ? 'risultato' : 'risultati'}
+                  </span>
+              </div>
+              <Select value={sortOrder} onValueChange={setSortOrder}>
+                <SelectTrigger className="w-full sm:w-[240px]">
+                  <SelectValue placeholder="Ordina per..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="purchaseDate_desc">Data (più recente)</SelectItem>
+                  <SelectItem value="purchaseDate_asc">Data (meno recente)</SelectItem>
+                  <SelectItem value="name_asc">Nome (A-Z)</SelectItem>
+                  <SelectItem value="name_desc">Nome (Z-A)</SelectItem>
+                  <SelectItem value="currentValue_desc">Valore (decrescente)</SelectItem>
+                  <SelectItem value="currentValue_asc">Valore (crescente)</SelectItem>
+                  <SelectItem value="performance_desc">Performance (migliore)</SelectItem>
+                  <SelectItem value="performance_asc">Performance (peggiore)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             {filteredAssets.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
