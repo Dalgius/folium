@@ -16,6 +16,7 @@ import { Button } from "./ui/button";
 
 interface PortfolioSummaryProps {
   assets: Asset[];
+  activeFilter: AssetType | 'Tutti';
 }
 
 type TimePeriod = '1M' | '6M' | '1Y' | 'YTD' | 'MAX';
@@ -29,7 +30,7 @@ const timePeriods: { label: string; value: TimePeriod }[] = [
 ];
 
 const sanitizeNameForChart = (name: string): string => {
-    return name.toLowerCase().replace(/\s+/g, '-');
+    return name.toLowerCase().replace(/[\s\.]+/g, '-');
 };
 
 const areaChartConfig = {
@@ -39,7 +40,7 @@ const areaChartConfig = {
   },
 } satisfies ChartConfig;
 
-const pieChartConfig = assetTypes.reduce((acc, type) => {
+const typePieChartConfig = assetTypes.reduce((acc, type) => {
     const key = sanitizeNameForChart(type);
     const chartIndex = (assetTypes.indexOf(type) % 5) + 1;
     acc[key] = {
@@ -50,9 +51,10 @@ const pieChartConfig = assetTypes.reduce((acc, type) => {
 }, {} as ChartConfig);
 
 
-export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
+export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps) {
   const [historicalChartData, setHistoricalChartData] = useState<any[]>([]);
   const [pieData, setPieData] = useState<any[]>([]);
+  const [pieChartConfig, setPieChartConfig] = useState<ChartConfig>(typePieChartConfig);
   const [securitiesSummary, setSecuritiesSummary] = useState<{ totalInitialValue: number; totalCurrentValue: number; } | null>(null);
   const [totalPatrimony, setTotalPatrimony] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,6 +65,14 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
 
   const securitiesAssets = useMemo(() => assets.filter(a => a.type === 'Azione' || a.type === 'ETF'), [assets]);
 
+  const pieChartTitle = useMemo(() => {
+    if (activeFilter === 'Tutti') return 'Allocazione per Tipo';
+    if (activeFilter === 'Azione') return 'Ripartizione Azioni';
+    if (activeFilter === 'ETF') return 'Ripartizione ETF';
+    if (activeFilter === 'Conto Bancario') return 'Ripartizione Conti';
+    return 'Allocazione';
+  }, [activeFilter]);
+
   useEffect(() => {
     const calculatePortfolioSummary = async () => {
       setIsLoading(true);
@@ -70,6 +80,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
       if (assets.length === 0) {
         setHistoricalChartData([]);
         setPieData([]);
+        setPieChartConfig(typePieChartConfig);
         setSecuritiesSummary({ totalInitialValue: 0, totalCurrentValue: 0 });
         setTotalPatrimony(0);
         setIsLoading(false);
@@ -94,30 +105,57 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
       }, 0);
       setTotalPatrimony(totalValueEur);
       
-      const allocation = assets.reduce((acc, asset) => {
-        const rate = rates[asset.currency] || 1;
-        const valueInEur = asset.currentValue * rate;
-        const key = sanitizeNameForChart(asset.type);
-        const typeConfig = Object.entries(pieChartConfig).find(([configKey, _]) => configKey === key);
-        if (!typeConfig) return acc;
-        
-        const label = typeConfig[1].label as string;
-        if (!acc[label]) {
-            acc[label] = { value: 0, key: key };
-        }
-        acc[label].value += valueInEur;
-        return acc;
-      }, {} as Record<string, { value: number; key: string }>);
+      const assetsForPie = activeFilter === 'Tutti' 
+        ? assets 
+        : assets.filter(a => a.type === activeFilter);
 
-      const finalPieData = Object.entries(allocation).map(([label, data]) => {
-        return {
+      if (activeFilter === 'Tutti') {
+        const allocation = assetsForPie.reduce((acc, asset) => {
+          const rate = rates[asset.currency] || 1;
+          const valueInEur = asset.currentValue * rate;
+          const key = sanitizeNameForChart(asset.type);
+          const typeConfig = Object.entries(typePieChartConfig).find(([configKey, _]) => configKey === key);
+          if (!typeConfig) return acc;
+          
+          const label = typeConfig[1].label as string;
+          if (!acc[label]) {
+              acc[label] = { value: 0, key: key };
+          }
+          acc[label].value += valueInEur;
+          return acc;
+        }, {} as Record<string, { value: number; key: string }>);
+
+        const finalPieData = Object.entries(allocation).map(([label, data]) => ({
           name: data.key,
           label: label,
           value: data.value,
           fill: `var(--color-${data.key})`
-        }
-      }).filter(d => d && d.value > 0);
-      setPieData(finalPieData as any[]);
+        })).filter(d => d && d.value > 0);
+        
+        setPieData(finalPieData as any[]);
+        setPieChartConfig(typePieChartConfig);
+      } else {
+        const dynamicConfig: ChartConfig = {};
+        const finalPieData = assetsForPie.map((asset, index) => {
+            const key = sanitizeNameForChart(asset.name);
+            const chartIndex = (index % 5) + 1;
+            const color = `hsl(var(--chart-${chartIndex}))`;
+            dynamicConfig[key] = { label: asset.name, color };
+
+            const rate = rates[asset.currency] || 1;
+            const valueInEur = asset.currentValue * rate;
+
+            return {
+                name: key,
+                label: asset.name,
+                value: valueInEur,
+                fill: `var(--color-${key})`
+            };
+        }).filter(d => d && d.value > 0);
+
+        setPieData(finalPieData as any[]);
+        setPieChartConfig(dynamicConfig);
+      }
 
       if (securitiesAssets.length > 0) {
         const today = new Date();
@@ -198,7 +236,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
     };
 
     calculatePortfolioSummary();
-  }, [assets, timePeriod, securitiesAssets]);
+  }, [assets, timePeriod, activeFilter, securitiesAssets]);
   
   const handleMouseMove = (e: any) => {
     if (e.activePayload && e.activePayload.length > 0) {
@@ -352,7 +390,8 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                     </p>
                 </div>
             </div>
-            <div className="w-full flex items-center justify-center">
+            <div className="w-full flex flex-col items-center justify-center">
+                 <h3 className="text-lg font-semibold font-headline mb-2">{pieChartTitle}</h3>
                  {pieData.length > 0 ? (
                     <ChartContainer config={pieChartConfig} className="w-full h-[250px]">
                         <PieChart>
@@ -384,7 +423,7 @@ export function PortfolioSummary({ assets }: PortfolioSummaryProps) {
                  ) : (
                     <div className="flex h-[250px] flex-col items-center justify-center text-center">
                         <Wallet className="h-10 w-10 text-muted-foreground" />
-                        <p className="mt-2 text-sm font-medium">Patrimonio non calcolabile</p>
+                        <p className="mt-2 text-sm font-medium">Nessun dato per il grafico</p>
                     </div>
                  )}
             </div>

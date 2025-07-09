@@ -197,7 +197,7 @@ export default function Home() {
                 )}
             </div>
           </div>
-          <PortfolioSummary assets={filteredAssets} />
+          <PortfolioSummary assets={assets} activeFilter={activeFilter} />
         </header>
         
         <div className="mb-6 flex flex-wrap items-center gap-2 rounded-lg border bg-card p-2">
