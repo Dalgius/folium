@@ -58,6 +58,7 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
   const [securitiesSummary, setSecuritiesSummary] = useState<{ totalInitialValue: number; totalCurrentValue: number; } | null>(null);
   const [totalPatrimony, setTotalPatrimony] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAreaChartLoading, setIsAreaChartLoading] = useState(true);
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('1Y');
   
   const [hoverValue, setHoverValue] = useState<number | null>(null);
@@ -68,6 +69,7 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
   useEffect(() => {
     const calculatePortfolioSummary = async () => {
       setIsLoading(true);
+      setIsAreaChartLoading(true);
       
       if (assets.length === 0) {
         setHistoricalChartData([]);
@@ -76,9 +78,11 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
         setSecuritiesSummary({ totalInitialValue: 0, totalCurrentValue: 0 });
         setTotalPatrimony(0);
         setIsLoading(false);
+        setIsAreaChartLoading(false);
         return;
       }
-      
+
+      // --- Inizio calcoli veloci ---
       const uniqueCurrencies = [...new Set(assets.map(a => a.currency))];
       const exchangeRateResults = await Promise.all(
         uniqueCurrencies.map(currency => currency === 'EUR' 
@@ -148,7 +152,11 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
         setPieData(finalPieData as any[]);
         setPieChartConfig(dynamicConfig);
       }
+      setIsLoading(false); // Fine calcoli veloci, mostra la UI base
+      // --- Fine calcoli veloci ---
 
+
+      // --- Inizio calcoli lenti (Grafico Andamento) ---
       if (securitiesAssets.length > 0) {
         const today = new Date();
         let startDate: Date;
@@ -224,7 +232,8 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
         setSecuritiesSummary({ totalInitialValue: 0, totalCurrentValue: 0 });
       }
 
-      setIsLoading(false);
+      setIsAreaChartLoading(false); // Fine calcoli lenti
+      // --- Fine calcoli lenti ---
     };
 
     calculatePortfolioSummary();
@@ -262,9 +271,22 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
           <Skeleton className="h-6 w-3/4" />
         </CardHeader>
         <CardContent className="p-6 pt-0">
-          <div className="flex flex-col items-center justify-center gap-6">
-              <Skeleton className="h-48 w-full" />
-              <Skeleton className="h-10 w-full" />
+          <div className="flex flex-col lg:flex-row gap-8">
+              <div className="lg:w-3/4 w-full space-y-4">
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-1/3" />
+                    <Skeleton className="h-8 w-1/2" />
+                  </div>
+                  <Skeleton className="h-[250px] w-full" />
+                  <Skeleton className="h-9 w-[280px]" />
+              </div>
+              <div className="lg:w-1/4 w-full space-y-4">
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-2/3" />
+                    <Skeleton className="h-8 w-1/2" />
+                  </div>
+                  <Skeleton className="h-[250px] w-full" />
+              </div>
           </div>
         </CardContent>
       </Card>
@@ -293,82 +315,96 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
       <CardContent className="flex flex-col lg:flex-row gap-8 p-6 pt-0">
         <div className="flex flex-col items-start gap-4 lg:w-3/4">
             <h3 className="text-lg font-semibold font-headline">Andamento Titoli (Azioni & ETF)</h3>
-            <div>
-              <p className="text-sm text-muted-foreground">{hoverDate || 'Valore Corrente (EUR)'}</p>
-              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
-                <p className="text-3xl font-bold text-primary">
-                  {formatCurrency(securitiesDisplayValue, 'EUR')}
-                </p>
-                <div className="flex items-center gap-2">
-                  <PerformanceIcon className={cn("h-5 w-5", performanceColor)} />
-                  <div className="flex flex-wrap items-baseline gap-x-2">
-                      <p className={cn("text-xl font-bold", performanceColor)}>
-                          {securitiesPerformance.toFixed(2)}%
-                      </p>
-                      <p className={cn("text-sm font-medium", performanceColor)}>
-                          ({securitiesValueChange >= 0 ? '+' : ''}{formatCurrency(securitiesValueChange, 'EUR')})
-                      </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {securitiesSummary && securitiesSummary.totalCurrentValue > 0 ? (
-                <div className="flex w-full flex-col items-start gap-4">
-                    <ChartContainer config={areaChartConfig} className="w-full h-[250px]">
-                        <AreaChart 
-                        data={historicalChartData}
-                        margin={{ top: 5, right: 10, left: 0, bottom: 0 }}
-                        onMouseMove={handleMouseMove}
-                        onMouseLeave={handleMouseLeave}
-                        >
-                            <defs>
-                                <linearGradient id="fillValue" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="var(--color-value)" stopOpacity={0.8}/>
-                                    <stop offset="95%" stopColor="var(--color-value)" stopOpacity={0.1}/>
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                            <XAxis dataKey="date" tickLine={false} axisLine={false} tick={false} tickMargin={0} />
-                            <YAxis tickLine={false} axisLine={false} tick={false} domain={['dataMin - (dataMax-dataMin)*0.1', 'dataMax + (dataMax-dataMin)*0.1']} width={0} tickMargin={0} />
-                            <ChartTooltip
-                                cursor={true}
-                                content={<ChartTooltipContent
-                                    formatter={(value) => formatCurrency(value as number, 'EUR')}
-                                    labelFormatter={(label) => format(parseISO(label), "eeee, d MMMM yyyy", { locale: it })}
-                                    indicator="dot"
-                                />}
-                            />
-                            <Area
-                                dataKey="value"
-                                type="natural"
-                                fill="url(#fillValue)"
-                                stroke="var(--color-value)"
-                                strokeWidth={2}
-                                dot={false}
-                            />
-                        </AreaChart>
-                    </ChartContainer>
-
-                    <div className="flex flex-wrap justify-start gap-1 rounded-lg border bg-card p-1">
-                        {timePeriods.map((period) => (
-                            <Button
-                                key={period.value}
-                                variant={timePeriod === period.value ? 'default' : 'ghost'}
-                                size="sm"
-                                onClick={() => setTimePeriod(period.value)}
-                            >
-                                {period.label}
-                            </Button>
-                        ))}
+            
+            {isAreaChartLoading ? (
+                <div className="w-full space-y-4">
+                    <div className="space-y-2">
+                        <Skeleton className="h-4 w-1/3" />
+                        <Skeleton className="h-8 w-1/2" />
                     </div>
+                    <Skeleton className="h-[250px] w-full" />
+                    <Skeleton className="h-9 w-[280px]" />
                 </div>
             ) : (
-                <div className="flex h-[314px] w-full flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 text-center">
-                     <TrendingUp className="h-10 w-10 text-muted-foreground" />
-                     <p className="mt-2 text-sm font-medium">Nessun titolo nel portafoglio</p>
-                     <p className="text-xs text-muted-foreground">Aggiungi azioni o ETF per vederne l'andamento.</p>
-                </div>
+                <>
+                    <div>
+                      <p className="text-sm text-muted-foreground">{hoverDate || 'Valore Corrente (EUR)'}</p>
+                      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
+                        <p className="text-3xl font-bold text-primary">
+                          {formatCurrency(securitiesDisplayValue, 'EUR')}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <PerformanceIcon className={cn("h-5 w-5", performanceColor)} />
+                          <div className="flex flex-wrap items-baseline gap-x-2">
+                              <p className={cn("text-xl font-bold", performanceColor)}>
+                                  {securitiesPerformance.toFixed(2)}%
+                              </p>
+                              <p className={cn("text-sm font-medium", performanceColor)}>
+                                  ({securitiesValueChange >= 0 ? '+' : ''}{formatCurrency(securitiesValueChange, 'EUR')})
+                              </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {securitiesSummary && securitiesSummary.totalCurrentValue > 0 ? (
+                        <div className="flex w-full flex-col items-start gap-4">
+                            <ChartContainer config={areaChartConfig} className="w-full h-[250px]">
+                                <AreaChart 
+                                data={historicalChartData}
+                                margin={{ top: 5, right: 10, left: 0, bottom: 0 }}
+                                onMouseMove={handleMouseMove}
+                                onMouseLeave={handleMouseLeave}
+                                >
+                                    <defs>
+                                        <linearGradient id="fillValue" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="var(--color-value)" stopOpacity={0.8}/>
+                                            <stop offset="95%" stopColor="var(--color-value)" stopOpacity={0.1}/>
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                                    <XAxis dataKey="date" tickLine={false} axisLine={false} tick={false} tickMargin={0} />
+                                    <YAxis tickLine={false} axisLine={false} tick={false} domain={['dataMin - (dataMax-dataMin)*0.1', 'dataMax + (dataMax-dataMin)*0.1']} width={0} tickMargin={0} />
+                                    <ChartTooltip
+                                        cursor={true}
+                                        content={<ChartTooltipContent
+                                            formatter={(value) => formatCurrency(value as number, 'EUR')}
+                                            labelFormatter={(label) => format(parseISO(label), "eeee, d MMMM yyyy", { locale: it })}
+                                            indicator="dot"
+                                        />}
+                                    />
+                                    <Area
+                                        dataKey="value"
+                                        type="natural"
+                                        fill="url(#fillValue)"
+                                        stroke="var(--color-value)"
+                                        strokeWidth={2}
+                                        dot={false}
+                                    />
+                                </AreaChart>
+                            </ChartContainer>
+
+                            <div className="flex flex-wrap justify-start gap-1 rounded-lg border bg-card p-1">
+                                {timePeriods.map((period) => (
+                                    <Button
+                                        key={period.value}
+                                        variant={timePeriod === period.value ? 'default' : 'ghost'}
+                                        size="sm"
+                                        onClick={() => setTimePeriod(period.value)}
+                                    >
+                                        {period.label}
+                                    </Button>
+                                ))}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex h-[314px] w-full flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 text-center">
+                            <TrendingUp className="h-10 w-10 text-muted-foreground" />
+                            <p className="mt-2 text-sm font-medium">Nessun titolo nel portafoglio</p>
+                            <p className="text-xs text-muted-foreground">Aggiungi azioni o ETF per vederne l'andamento.</p>
+                        </div>
+                    )}
+                </>
             )}
         </div>
 
@@ -423,3 +459,5 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
     </Card>
   );
 }
+
+    
