@@ -175,12 +175,12 @@ export default function Home() {
       <main className="container mx-auto p-4 sm:p-6 lg:p-8">
         <header className="mb-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-             <div>
-                <div className="flex items-center gap-3">
-                    <Image src="/logo.png" alt="Folium Logo" width={40} height={40} data-ai-hint="logo" />
+            <div className="flex items-center gap-3">
+                <Image src="/logo.png" alt="Folium Logo" width={40} height={40} data-ai-hint="logo" />
+                <div>
                     <FoliumLogo className="h-8 w-auto text-primary" />
+                    {user && <p className="text-sm text-muted-foreground">Bentornato, {user.email}</p>}
                 </div>
-                {user && <p className="text-sm text-muted-foreground mt-2">Bentornato, {user.email}</p>}
             </div>
             <div className="flex items-center gap-2">
                 <Button variant="outline" onClick={handleRefreshAllAssets} disabled={isLoading || assets.length === 0}>
