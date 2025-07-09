@@ -72,6 +72,15 @@ export async function getQuote(ticker: string): Promise<Quote | null> {
     
     try {
         const result = await yahooFinance.quote(ticker);
+
+        // Log completo per il debug, come richiesto
+        console.log('Full quote result for ' + ticker + ':', result);
+        console.log(`Quote for ${ticker}:`, {
+            price: result?.regularMarketPrice,
+            prevClose: result?.regularMarketPreviousClose,
+            change: result?.regularMarketChange,
+            changePercent: result?.regularMarketChangePercent,
+        });
         
         if (!result || !result.regularMarketPrice || !result.currency || !(result.longName || result.shortName)) {
             console.warn(`Dati del preventivo incompleti per ${ticker}`, result);
