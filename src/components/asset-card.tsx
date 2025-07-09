@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -108,7 +109,7 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
                         {`${dailyGainAbsolute >= 0 ? '+' : ''}${formatCurrency(dailyGainAbsolute, asset.currency)}`}
                     </p>
                     <p className={cn("text-xs", dailyPerformanceColor)}>
-                        {`${dailyGainPercent >= 0 ? '+' : ''}${dailyGainPercent.toFixed(2)}%`}
+                        {`${dailyGainPercent >= 0 ? '+' : ''}${(dailyGainPercent * 100).toFixed(2)}%`}
                     </p>
                 </div>
               )}
