@@ -72,35 +72,35 @@ export async function getQuote(ticker: string): Promise<Quote | null> {
     try {
         const result = await yahooFinance.quote(ticker);
         
-        // The most reliable calculation uses current price and previous close, as suggested.
-        if (result && result.regularMarketPrice && result.regularMarketPreviousClose && result.currency && (result.longName || result.shortName)) {
-            const currentPrice = result.regularMarketPrice;
-            const previousClose = result.regularMarketPreviousClose;
-            
-            const dailyChange = currentPrice - previousClose;
-            const dailyChangePercent = previousClose !== 0 ? (dailyChange / previousClose) : 0;
+        if (!result || !result.regularMarketPrice || !result.currency || !(result.longName || result.shortName)) {
+          // Not enough data to form a basic quote
+          return null;
+        }
+        
+        let dailyChange: number | undefined = undefined;
+        let dailyChangePercent: number | undefined = undefined;
 
-            return {
-                price: currentPrice,
-                currency: result.currency,
-                name: result.longName || result.shortName || ticker,
-                dailyChange: dailyChange,
-                dailyChangePercent: dailyChangePercent,
-            };
+        // Preferred method: calculate from previous close
+        if (result.regularMarketPreviousClose) {
+            dailyChange = result.regularMarketPrice - result.regularMarketPreviousClose;
+            dailyChangePercent = result.regularMarketPreviousClose !== 0 
+                ? (dailyChange / result.regularMarketPreviousClose) 
+                : 0;
+        } 
+        // Fallback method: use Yahoo's calculated values
+        else if (result.regularMarketChange !== undefined && result.regularMarketChangePercent !== undefined) {
+            dailyChange = result.regularMarketChange;
+            dailyChangePercent = result.regularMarketChangePercent;
         }
 
-        // Fallback for cases where previous close might not be available, but the API provides the change directly.
-        if (result && result.regularMarketPrice && result.currency && (result.longName || result.shortName)) {
-             return {
-                price: result.regularMarketPrice,
-                currency: result.currency,
-                name: result.longName || result.shortName || ticker,
-                dailyChange: result.regularMarketChange, // Use the API value as fallback
-                dailyChangePercent: result.regularMarketChangePercent, // Use the API value as fallback
-            };
-        }
+        return {
+            price: result.regularMarketPrice,
+            currency: result.currency,
+            name: result.longName || result.shortName || ticker,
+            dailyChange,
+            dailyChangePercent,
+        };
 
-        return null;
     } catch (error) {
         console.error(`Error getting quote for ${ticker}:`, error);
         return null;
