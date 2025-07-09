@@ -3,10 +3,10 @@
 
 import { Asset, AssetType, assetTypes } from "@/types";
 import { formatCurrency, cn } from "@/lib/utils";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Pie, PieChart, Sector } from "recharts";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Pie, PieChart } from "recharts";
 import { useState, useEffect, useMemo } from "react";
 import { getExchangeRate, getHistoricalData, HistoricalDataPoint } from "@/services/finance.service";
 import { TrendingUp, TrendingDown, Minus, Wallet } from "lucide-react";
@@ -50,6 +50,9 @@ const typePieChartConfig = assetTypes.reduce((acc, type) => {
     return acc;
 }, {} as ChartConfig);
 
+const isValidDateString = (dateString: any): dateString is string => {
+  return typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateString);
+};
 
 export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps) {
   const [historicalChartData, setHistoricalChartData] = useState<any[]>([]);
@@ -82,7 +85,6 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
         return;
       }
 
-      // --- Inizio calcoli veloci ---
       const uniqueCurrencies = [...new Set(assets.map(a => a.currency))];
       const exchangeRateResults = await Promise.all(
         uniqueCurrencies.map(currency => currency === 'EUR' 
@@ -152,11 +154,8 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
         setPieData(finalPieData as any[]);
         setPieChartConfig(dynamicConfig);
       }
-      setIsLoading(false); // Fine calcoli veloci, mostra la UI base
-      // --- Fine calcoli veloci ---
+      setIsLoading(false);
 
-
-      // --- Inizio calcoli lenti (Grafico Andamento) ---
       if (securitiesAssets.length > 0) {
         const today = new Date();
         let startDate: Date;
@@ -232,8 +231,7 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
         setSecuritiesSummary({ totalInitialValue: 0, totalCurrentValue: 0 });
       }
 
-      setIsAreaChartLoading(false); // Fine calcoli lenti
-      // --- Fine calcoli lenti ---
+      setIsAreaChartLoading(false);
     };
 
     calculatePortfolioSummary();
@@ -267,10 +265,7 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
   if (isLoading) {
     return (
       <Card>
-        <CardHeader className="p-6">
-          <Skeleton className="h-6 w-3/4" />
-        </CardHeader>
-        <CardContent className="p-6 pt-0">
+        <CardContent className="p-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2 w-full space-y-4">
                   <div className="space-y-2">
@@ -296,10 +291,7 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
   if (assets.length === 0 && !isLoading) {
     return (
       <Card>
-        <CardHeader className="p-6">
-          <CardTitle>Riepilogo Portafoglio</CardTitle>
-        </CardHeader>
-        <CardContent className="p-6 pt-0">
+        <CardContent className="p-6">
           <p className="text-2xl font-bold">{formatCurrency(0, 'EUR')}</p>
           <p className="text-sm text-muted-foreground">Aggiungi un asset per iniziare.</p>
         </CardContent>
@@ -328,107 +320,104 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
 
   return (
     <Card>
-      <CardHeader className="p-6">
-        <CardTitle>Riepilogo Portafoglio</CardTitle>
-      </CardHeader>
-      <CardContent className="grid grid-cols-1 lg:grid-cols-3 gap-8 p-6 pt-0">
-        <div className="flex flex-col items-start gap-4 lg:col-span-2">
-            <h3 className="text-lg font-semibold font-headline">Andamento Titoli (Azioni & ETF)</h3>
-            
+      <CardContent className="p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 lg:gap-8">
+          
+          <div className="flex flex-col gap-4 lg:col-span-2">
+            <div className="flex flex-col gap-y-2">
+                <h3 className="text-lg font-semibold font-headline">Andamento Titoli (Azioni & ETF)</h3>
+                <div>
+                  <p className="text-sm text-muted-foreground">{hoverDate || 'Valore Corrente'}</p>
+                  <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
+                    <p className="text-3xl font-bold text-primary">
+                      {formatCurrency(securitiesDisplayValue, 'EUR')}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <PerformanceIcon className={cn("h-5 w-5", performanceColor)} />
+                      <div className="flex flex-wrap items-baseline gap-x-2">
+                          <p className={cn("text-xl font-bold", performanceColor)}>
+                              {securitiesPerformance.toFixed(2)}%
+                          </p>
+                          <p className={cn("text-sm font-medium", performanceColor)}>
+                              ({securitiesValueChange >= 0 ? '+' : ''}{formatCurrency(securitiesValueChange, 'EUR')})
+                          </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+            </div>
+
             {isAreaChartLoading ? (
                 <div className="w-full space-y-4">
-                    <div className="space-y-2">
-                        <Skeleton className="h-4 w-1/3" />
-                        <Skeleton className="h-8 w-1/2" />
-                    </div>
                     <Skeleton className="h-[250px] w-full" />
                     <Skeleton className="h-9 w-[280px]" />
                 </div>
-            ) : (
-                <>
-                    <div>
-                      <p className="text-sm text-muted-foreground">{hoverDate || 'Valore Corrente'}</p>
-                      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
-                        <p className="text-3xl font-bold text-primary">
-                          {formatCurrency(securitiesDisplayValue, 'EUR')}
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <PerformanceIcon className={cn("h-5 w-5", performanceColor)} />
-                          <div className="flex flex-wrap items-baseline gap-x-2">
-                              <p className={cn("text-xl font-bold", performanceColor)}>
-                                  {securitiesPerformance.toFixed(2)}%
-                              </p>
-                              <p className={cn("text-sm font-medium", performanceColor)}>
-                                  ({securitiesValueChange >= 0 ? '+' : ''}{formatCurrency(securitiesValueChange, 'EUR')})
-                              </p>
-                          </div>
-                        </div>
-                      </div>
+            ) : securitiesSummary && securitiesSummary.totalCurrentValue > 0 ? (
+                <div className="flex w-full flex-col items-start gap-4">
+                    <ChartContainer config={areaChartConfig} className="w-full h-[250px]">
+                        <AreaChart 
+                        data={historicalChartData}
+                        margin={{ top: 5, right: 10, left: 0, bottom: 0 }}
+                        onMouseMove={handleMouseMove}
+                        onMouseLeave={handleMouseLeave}
+                        >
+                            <defs>
+                                <linearGradient id="fillValue" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="var(--color-value)" stopOpacity={0.8}/>
+                                    <stop offset="95%" stopColor="var(--color-value)" stopOpacity={0.1}/>
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                            <XAxis dataKey="date" tickLine={false} axisLine={false} tick={false} tickMargin={0} />
+                            <YAxis tickLine={false} axisLine={false} tick={false} domain={['dataMin - (dataMax-dataMin)*0.1', 'dataMax + (dataMax-dataMin)*0.1']} width={0} tickMargin={0} />
+                            <ChartTooltip
+                                cursor={true}
+                                content={<ChartTooltipContent
+                                    formatter={(value) => formatCurrency(value as number, 'EUR')}
+                                    labelFormatter={(label) => {
+                                        if (isValidDateString(label)) {
+                                            return format(parseISO(label), "eeee, d MMMM yyyy", { locale: it });
+                                        }
+                                        return '';
+                                    }}
+                                    indicator="dot"
+                                />}
+                            />
+                            <Area
+                                dataKey="value"
+                                type="natural"
+                                fill="url(#fillValue)"
+                                stroke="var(--color-value)"
+                                strokeWidth={2}
+                                dot={false}
+                            />
+                        </AreaChart>
+                    </ChartContainer>
+
+                    <div className="flex flex-wrap justify-start gap-1 rounded-lg border bg-card p-1">
+                        {timePeriods.map((period) => (
+                            <Button
+                                key={period.value}
+                                variant={timePeriod === period.value ? 'default' : 'ghost'}
+                                size="sm"
+                                onClick={() => setTimePeriod(period.value)}
+                            >
+                                {period.label}
+                            </Button>
+                        ))}
                     </div>
-
-                    {securitiesSummary && securitiesSummary.totalCurrentValue > 0 ? (
-                        <div className="flex w-full flex-col items-start gap-4">
-                            <ChartContainer config={areaChartConfig} className="w-full h-[250px]">
-                                <AreaChart 
-                                data={historicalChartData}
-                                margin={{ top: 5, right: 10, left: 0, bottom: 0 }}
-                                onMouseMove={handleMouseMove}
-                                onMouseLeave={handleMouseLeave}
-                                >
-                                    <defs>
-                                        <linearGradient id="fillValue" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="var(--color-value)" stopOpacity={0.8}/>
-                                            <stop offset="95%" stopColor="var(--color-value)" stopOpacity={0.1}/>
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                                    <XAxis dataKey="date" tickLine={false} axisLine={false} tick={false} tickMargin={0} />
-                                    <YAxis tickLine={false} axisLine={false} tick={false} domain={['dataMin - (dataMax-dataMin)*0.1', 'dataMax + (dataMax-dataMin)*0.1']} width={0} tickMargin={0} />
-                                    <ChartTooltip
-                                        cursor={true}
-                                        content={<ChartTooltipContent
-                                            formatter={(value) => formatCurrency(value as number, 'EUR')}
-                                            labelFormatter={(label) => format(parseISO(label), "eeee, d MMMM yyyy", { locale: it })}
-                                            indicator="dot"
-                                        />}
-                                    />
-                                    <Area
-                                        dataKey="value"
-                                        type="natural"
-                                        fill="url(#fillValue)"
-                                        stroke="var(--color-value)"
-                                        strokeWidth={2}
-                                        dot={false}
-                                    />
-                                </AreaChart>
-                            </ChartContainer>
-
-                            <div className="flex flex-wrap justify-start gap-1 rounded-lg border bg-card p-1">
-                                {timePeriods.map((period) => (
-                                    <Button
-                                        key={period.value}
-                                        variant={timePeriod === period.value ? 'default' : 'ghost'}
-                                        size="sm"
-                                        onClick={() => setTimePeriod(period.value)}
-                                    >
-                                        {period.label}
-                                    </Button>
-                                ))}
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="flex h-[314px] w-full flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 text-center">
-                            <TrendingUp className="h-10 w-10 text-muted-foreground" />
-                            <p className="mt-2 text-sm font-medium">Nessun titolo nel portafoglio</p>
-                            <p className="text-xs text-muted-foreground">Aggiungi azioni o ETF per vederne l'andamento.</p>
-                        </div>
-                    )}
-                </>
+                </div>
+            ) : (
+                <div className="flex h-[314px] w-full flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 text-center">
+                    <TrendingUp className="h-10 w-10 text-muted-foreground" />
+                    <p className="mt-2 text-sm font-medium">Nessun titolo nel portafoglio</p>
+                    <p className="text-xs text-muted-foreground">Aggiungi azioni o ETF per vederne l'andamento.</p>
+                </div>
             )}
-        </div>
+          </div>
 
-        <div className="flex flex-col gap-4 lg:col-span-1 lg:border-l lg:pl-8">
-            <div className="flex-shrink-0">
+          <div className="flex flex-col gap-4 lg:col-span-1 lg:border-l lg:pl-8">
+            <div className="flex flex-col gap-y-2">
                 <h3 className="text-lg font-semibold font-headline">Patrimonio Complessivo</h3>
                 <div>
                     <p className="text-sm text-muted-foreground">Valore Totale</p>
@@ -465,11 +454,9 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
                     </div>
                  )}
             </div>
+          </div>
         </div>
       </CardContent>
     </Card>
   );
 }
-
-    
-
