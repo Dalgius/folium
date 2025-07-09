@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -268,11 +269,6 @@ export default function Home() {
           renderSkeletons()
         ) : assets.length > 0 ? (
           <section>
-            <div className="flex items-center justify-end mb-4">
-              <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-1 rounded-md">
-                  {filteredAssets.length} {filteredAssets.length === 1 ? 'risultato' : 'risultati'}
-              </span>
-            </div>
             {filteredAssets.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredAssets.map(asset => (
