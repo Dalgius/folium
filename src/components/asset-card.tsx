@@ -59,6 +59,10 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
     "text-muted-foreground": dailyGainAbsolute === 0,
   });
 
+  const currentPricePerShare = (asset.type === 'Azione' || asset.type === 'ETF') && asset.quantity && asset.quantity > 0 
+    ? asset.currentValue / asset.quantity 
+    : undefined;
+
   return (
     <Card className={cn(
         "flex flex-col overflow-hidden transition-all duration-300",
@@ -104,9 +108,16 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
             </div>
             <div className="text-right flex flex-col items-end min-h-[44px] justify-end">
                 {(asset.type === 'Azione' || asset.type === 'ETF') && asset.dailyChange != null && asset.dailyChangePercent != null && (
-                  <p className={cn("text-sm font-semibold", dailyPerformanceColor)}>
-                    ({(dailyGainPercent >= 0 ? '+' : '')}{(dailyGainPercent * 100).toFixed(2)}%)
-                  </p>
+                  <>
+                    {currentPricePerShare !== undefined && (
+                        <p className="text-sm font-semibold text-foreground">
+                            {formatCurrency(currentPricePerShare, asset.currency)}
+                        </p>
+                    )}
+                    <p className={cn("text-xs", dailyPerformanceColor)}>
+                        ({(dailyGainPercent >= 0 ? '+' : '')}{(dailyGainPercent * 100).toFixed(2)}%)
+                    </p>
+                  </>
                 )}
             </div>
           </div>
