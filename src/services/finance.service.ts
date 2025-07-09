@@ -102,7 +102,6 @@ async function getQuoteViaQuoteEndpoint(ticker: string): Promise<Quote | null> {
         ]});
         
         if (!result || !result.currency) {
-            console.warn(`Incomplete quote data for ${ticker}`, result);
             return null;
         }
         
@@ -117,7 +116,6 @@ async function getQuoteViaQuoteEndpoint(ticker: string): Promise<Quote | null> {
         }
         
         if (!price) {
-            console.warn(`Could not determine a valid price for ${ticker}`, result);
             return null;
         }
 
@@ -189,9 +187,9 @@ async function getQuoteViaSummaryEndpoint(ticker: string): Promise<Quote | null>
 function validateQuoteData(quote: Quote): boolean {
     const isValid =
         quote.price > 0 &&
-        quote.currency &&
+        !!quote.currency &&
         quote.currency.length === 3 &&
-        quote.name &&
+        !!quote.name &&
         quote.name.length > 0;
     return isValid;
 }
