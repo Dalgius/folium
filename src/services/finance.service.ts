@@ -245,3 +245,4 @@ function getPreviousTradingDay(): string {
     date.setDate(date.getDate() - daysToSubtract);
     return date.toISOString().split('T')[0];
 }
+
