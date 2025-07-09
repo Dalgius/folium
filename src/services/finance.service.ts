@@ -69,12 +69,12 @@ export interface Quote {
 
 export async function getQuote(ticker: string): Promise<Quote | null> {
     if (!ticker) return null;
+    
     try {
         const result = await yahooFinance.quote(ticker);
         
         if (!result || !result.regularMarketPrice || !result.currency || !(result.longName || result.shortName)) {
-          // Not enough data to form a basic quote
-          return null;
+            return null;
         }
         
         let dailyChange: number | undefined = undefined;
@@ -85,11 +85,17 @@ export async function getQuote(ticker: string): Promise<Quote | null> {
             dailyChange = result.regularMarketPrice - result.regularMarketPreviousClose;
             dailyChangePercent = (dailyChange / result.regularMarketPreviousClose) * 100;
         } 
-        // Method 2: Use Yahoo's pre-calculated values as a fallback
+        // Method 2: Use Yahoo's pre-calculated values with smart percentage handling
         else if (result.regularMarketChange !== undefined && result.regularMarketChangePercent !== undefined) {
             dailyChange = result.regularMarketChange;
-            // The library returns a decimal (e.g., 0.025 for 2.5%), so we multiply by 100
-            dailyChangePercent = result.regularMarketChangePercent * 100;
+            
+            // Smart percentage detection: if the value is between -1 and 1, it's likely a decimal
+            const changePercent = result.regularMarketChangePercent;
+            if (Math.abs(changePercent) <= 1) {
+                dailyChangePercent = changePercent * 100; // Convert decimal to percentage
+            } else {
+                dailyChangePercent = changePercent; // Already a percentage
+            }
         }
 
         return {
