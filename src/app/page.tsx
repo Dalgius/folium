@@ -177,8 +177,8 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
             <div className="flex items-center gap-3">
                 <Image src="/logo.png?v=2" alt="Folium Logo" width={40} height={40} data-ai-hint="logo" />
-                <div className="flex flex-col items-start">
-                    <FoliumLogo className="h-8 w-auto text-primary -ml-1" />
+                <div className="flex flex-col items-start justify-center">
+                    <FoliumLogo className="h-8 w-auto text-primary" />
                     {user && <p className="text-sm text-muted-foreground">Bentornato, {user.email}</p>}
                 </div>
             </div>
