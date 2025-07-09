@@ -65,14 +65,6 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
 
   const securitiesAssets = useMemo(() => assets.filter(a => a.type === 'Azione' || a.type === 'ETF'), [assets]);
 
-  const pieChartTitle = useMemo(() => {
-    if (activeFilter === 'Tutti') return 'Allocazione per Tipo';
-    if (activeFilter === 'Azione') return 'Ripartizione Azioni';
-    if (activeFilter === 'ETF') return 'Ripartizione ETF';
-    if (activeFilter === 'Conto Bancario') return 'Ripartizione Conti';
-    return 'Allocazione';
-  }, [activeFilter]);
-
   useEffect(() => {
     const calculatePortfolioSummary = async () => {
       setIsLoading(true);
@@ -390,8 +382,7 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
                     </p>
                 </div>
             </div>
-            <div className="w-full flex flex-col items-center justify-center">
-                 <h3 className="text-lg font-semibold font-headline mb-2">{pieChartTitle}</h3>
+            <div className="w-full flex flex-col items-center justify-center pt-2">
                  {pieData.length > 0 ? (
                     <ChartContainer config={pieChartConfig} className="w-full h-[250px]">
                         <PieChart>
