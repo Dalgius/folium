@@ -2,7 +2,6 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import Image from 'next/image';
 import { Asset, AssetType } from '@/types';
 import { PlusCircle, SearchX, RefreshCw, LogOut } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
@@ -18,6 +17,7 @@ import { PortfolioSummary } from '@/components/portfolio-summary';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { FoliumLogo } from '@/components/folium-logo';
 
 
 export default function Home() {
@@ -174,12 +174,9 @@ export default function Home() {
       <main className="container mx-auto p-4 sm:p-6 lg:p-8">
         <header className="mb-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-             <div className="flex items-center gap-3">
-                <Image src="/logo.png" alt="Folium Logo" width={48} height={48} />
-                <div>
-                  <h1 className="text-3xl font-bold text-primary font-headline tracking-tight">Folium</h1>
-                  {user && <p className="text-sm text-muted-foreground">Bentornato, {user.email}</p>}
-                </div>
+            <div>
+              <FoliumLogo className="h-10 w-auto text-primary" />
+              {user && <p className="text-sm text-muted-foreground mt-2">Bentornato, {user.email}</p>}
             </div>
             <div className="flex items-center gap-2">
                 <Button variant="outline" onClick={handleRefreshAllAssets} disabled={isLoading || assets.length === 0}>
@@ -247,7 +244,7 @@ export default function Home() {
           </section>
         ) : (
           <div className="text-center py-20 px-6 border-2 border-dashed border-border rounded-lg">
-            <Image src="/logo.png" alt="Folium Logo" width={64} height={64} className="mx-auto opacity-50" />
+            <FoliumLogo className="h-16 w-auto mx-auto text-muted-foreground opacity-50" />
             <h2 className="mt-4 text-xl font-semibold text-foreground">Il tuo portafoglio è vuoto</h2>
             <p className="mt-2 text-sm text-muted-foreground">Aggiungi il tuo primo asset per iniziare a tracciare i tuoi investimenti.</p>
             <div className="mt-6">
