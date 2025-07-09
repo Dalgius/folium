@@ -67,6 +67,23 @@ export interface Quote {
     dailyChangePercent?: number;
 }
 
+/**
+ * Normalizes percentage values from the API.
+ * Yahoo can return 2.5 (for 2.5%) or 0.025 (also for 2.5%).
+ * This function ensures we always return a decimal representation (e.g., 0.025).
+ * @param value The percentage value from the API.
+ * @returns The normalized decimal percentage.
+ */
+function normalizePercentage(value: number | undefined): number | undefined {
+    if (value === undefined || value === null) return undefined;
+    if (value === 0) return 0;
+    
+    // If the absolute value is > 1, it's likely a whole percentage (e.g., 2.5 for 2.5%).
+    // Otherwise, it's likely already a decimal (e.g., 0.025 for 2.5%).
+    return Math.abs(value) > 1 ? value / 100 : value;
+}
+
+
 async function getQuoteViaQuoteEndpoint(ticker: string): Promise<Quote | null> {
     if (!ticker) return null;
     
@@ -103,9 +120,7 @@ async function getQuoteViaQuoteEndpoint(ticker: string): Promise<Quote | null> {
         // Method 2: Use pre-calculated values as a fallback
         else if (result.regularMarketChange !== undefined && result.regularMarketChangePercent !== undefined) {
             dailyChange = result.regularMarketChange;
-            const changePercent = result.regularMarketChangePercent;
-            // Normalize to decimal format, as API can return 2.5 or 0.025
-            dailyChangePercent = Math.abs(changePercent) > 1 ? changePercent / 100 : changePercent;
+            dailyChangePercent = normalizePercentage(result.regularMarketChangePercent);
         }
         // Method 3: Fallback to historical data
         else {
@@ -114,7 +129,7 @@ async function getQuoteViaQuoteEndpoint(ticker: string): Promise<Quote | null> {
                 if (historical.length > 0) {
                     const lastClose = historical[historical.length - 1].close;
                     dailyChange = price - lastClose;
-                    dailyChangePercent = (dailyChange / lastClose);
+                    dailyChangePercent = lastClose > 0 ? (dailyChange / lastClose) : 0;
                 }
             } catch (histError) {
                 console.warn(`Historical data fallback failed for ${ticker}`, histError);
@@ -150,19 +165,12 @@ async function getQuoteViaSummaryEndpoint(ticker: string): Promise<Quote | null>
             return null;
         }
         
-        let dailyChangePercentDecimal: number | undefined;
-        if (priceData.regularMarketChangePercent !== undefined) {
-            const changePercent = priceData.regularMarketChangePercent;
-            // Normalize to decimal format
-            dailyChangePercentDecimal = Math.abs(changePercent) > 1 ? changePercent / 100 : changePercent;
-        }
-
         return {
             price: priceData.regularMarketPrice,
             currency: priceData.currency,
             name: priceData.longName || priceData.shortName || ticker,
             dailyChange: priceData.regularMarketChange,
-            dailyChangePercent: dailyChangePercentDecimal,
+            dailyChangePercent: normalizePercentage(priceData.regularMarketChangePercent),
         };
     } catch (error) {
         console.error(`Alternative quote method failed for ${ticker}:`, error);
