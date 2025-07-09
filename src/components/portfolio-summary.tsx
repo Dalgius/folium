@@ -321,12 +321,12 @@ export function PortfolioSummary({ assets, activeFilter }: PortfolioSummaryProps
   return (
     <Card>
       <CardContent className="p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 lg:gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 lg:gap-8 items-start">
           
           <div className="flex flex-col justify-between gap-4 lg:col-span-2">
             <div>
                 <div className="mb-4">
-                  <h3 className="text-lg font-semibold font-headline">Andamento Titoli (Azioni & ETF)</h3>
+                  <h3 className="text-lg font-semibold font-headline">Andamento Titoli</h3>
                   <div>
                     <p className="text-sm text-muted-foreground">{hoverDate || 'Valore Corrente'}</p>
                     <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
