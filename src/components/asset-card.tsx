@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -105,9 +104,12 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
             <div className="text-right flex flex-col items-end min-h-[44px] justify-end">
               {(asset.type === 'Azione' || asset.type === 'ETF') && asset.dailyChange != null && asset.dailyChangePercent != null && (
                 <div className="bg-muted px-2 py-1 rounded-md text-right">
-                  <span className={cn("text-sm font-semibold", dailyPerformanceColor)}>
-                    {`${dailyGainAbsolute >= 0 ? '+' : ''}${formatCurrency(dailyGainAbsolute, asset.currency)} (${dailyGainPercent >= 0 ? '+' : ''}${dailyGainPercent.toFixed(2)}%)`}
-                  </span>
+                    <p className={cn("text-sm font-semibold", dailyPerformanceColor)}>
+                        {`${dailyGainAbsolute >= 0 ? '+' : ''}${formatCurrency(dailyGainAbsolute, asset.currency)}`}
+                    </p>
+                    <p className={cn("text-xs", dailyPerformanceColor)}>
+                        {`${dailyGainPercent >= 0 ? '+' : ''}${dailyGainPercent.toFixed(2)}%`}
+                    </p>
                 </div>
               )}
             </div>
