@@ -52,7 +52,7 @@ export function AssetCard({ asset, onDelete, onUpdate }: AssetCardProps) {
   );
   
   const dailyGainAbsolute = (asset.dailyChange != null && asset.quantity != null) ? asset.dailyChange * asset.quantity : 0;
-  const dailyGainPercent = asset.dailyChangePercent != null ? asset.dailyChangePercent * 100 : 0;
+  const dailyGainPercent = asset.dailyChangePercent != null ? asset.dailyChangePercent : 0;
   const dailyPerformanceColor = cn({
     "text-green-600": dailyGainAbsolute > 0,
     "text-red-600": dailyGainAbsolute < 0,
