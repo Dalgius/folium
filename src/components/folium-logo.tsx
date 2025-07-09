@@ -10,7 +10,7 @@ export function FoliumLogo({ className, ...props }: React.SVGProps<SVGSVGElement
       {...props}
     >
       {/* Placeholder SVG - Puoi sostituire questo con il codice del tuo SVG */}
-      <text x="10" y="30" fontFamily="Inter, sans-serif" fontSize="30" fontWeight="bold">
+      <text x="0" y="30" fontFamily="Inter, sans-serif" fontSize="30" fontWeight="bold">
         Folium
       </text>
     </svg>
