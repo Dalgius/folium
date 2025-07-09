@@ -10,7 +10,6 @@ export interface SearchResult {
   type: string;
 }
 
-// A more specific type for the quotes we are interested in from the search results.
 interface EquityOrEtfQuote {
   symbol: string;
   longname?: string;
@@ -20,7 +19,6 @@ interface EquityOrEtfQuote {
   isYahooFinance: true;
 }
 
-// Type guard to check if a quote from yahooFinance.search is the type we want.
 function isEquityOrEtf(quote: any): quote is EquityOrEtfQuote {
   return (
     quote &&
@@ -39,7 +37,6 @@ export async function searchSecurities(query: string): Promise<SearchResult[]> {
   try {
     const results = await yahooFinance.search(query, { newsCount: 0 });
     
-    // Use flatMap to filter and map in one step, which can be more robust for type inference.
     return (results.quotes || []).flatMap((q): SearchResult[] => {
       if (isEquityOrEtf(q)) {
         return [{
@@ -53,8 +50,6 @@ export async function searchSecurities(query: string): Promise<SearchResult[]> {
     });
   } catch (error) {
     console.error('Error searching securities:', error);
-    // This can happen for various reasons, like network issues or API changes.
-    // Returning an empty array is a safe fallback.
     return [];
   }
 }
@@ -64,29 +59,34 @@ export interface Quote {
     currency: string;
     name: string;
     dailyChange?: number;
-    dailyChangePercent?: number;
+    dailyChangePercent?: number; // Should be a decimal, e.g., 0.025 for 2.5%
 }
 
-/**
- * Normalizes percentage values from the API.
- * Yahoo can return 2.5 (for 2.5%) or 0.025 (also for 2.5%).
- * This function ensures we always return a decimal representation (e.g., 0.025).
- * @param value The percentage value from the API.
- * @returns The normalized decimal percentage.
- */
 function normalizePercentage(value: number | undefined): number | undefined {
     if (value === undefined || value === null) return undefined;
     if (value === 0) return 0;
     
-    // If the absolute value is > 1, it's likely a whole percentage (e.g., 2.5 for 2.5%).
-    // Otherwise, it's likely already a decimal (e.g., 0.025 for 2.5%).
+    // Yahoo can return 2.5 (for 2.5%) or 0.025 (also for 2.5%).
+    // This ensures we always return a decimal representation (e.g., 0.025).
     return Math.abs(value) > 1 ? value / 100 : value;
 }
 
+function getPreviousTradingDay(): string {
+    const date = new Date();
+    const dayOfWeek = date.getDay(); // Sunday - 0, Monday - 1, ..., Saturday - 6
+    let daysToSubtract = 1; // Default for Tue-Fri
+    if (dayOfWeek === 0) { // Sunday
+        daysToSubtract = 2;
+    } else if (dayOfWeek === 1) { // Monday
+        daysToSubtract = 3;
+    } else if (dayOfWeek === 6) { // Saturday
+        daysToSubtract = 1;
+    }
+    date.setDate(date.getDate() - daysToSubtract);
+    return date.toISOString().split('T')[0];
+}
 
 async function getQuoteViaQuoteEndpoint(ticker: string): Promise<Quote | null> {
-    if (!ticker) return null;
-    
     try {
         const result = await yahooFinance.quote(ticker, { fields: [
             'regularMarketPrice', 
@@ -108,7 +108,6 @@ async function getQuoteViaQuoteEndpoint(ticker: string): Promise<Quote | null> {
         const price = result.regularMarketPrice;
         const currency = result.currency;
 
-        // Initialize change variables
         let dailyChange: number | undefined;
         let dailyChangePercent: number | undefined;
 
@@ -141,7 +140,7 @@ async function getQuoteViaQuoteEndpoint(ticker: string): Promise<Quote | null> {
             currency,
             name,
             dailyChange,
-            dailyChangePercent, // Always returned as a decimal e.g. 0.025 for 2.5%
+            dailyChangePercent,
         };
 
     } catch (error) {
@@ -178,16 +177,38 @@ async function getQuoteViaSummaryEndpoint(ticker: string): Promise<Quote | null>
     }
 }
 
+function validateQuoteData(quote: Quote): boolean {
+    const isValid =
+        quote.price > 0 &&
+        quote.currency &&
+        quote.currency.length === 3 &&
+        quote.name &&
+        quote.name.length > 0;
+    return isValid;
+}
+
 export async function getQuote(ticker: string): Promise<Quote | null> {
-    const primaryQuote = await getQuoteViaQuoteEndpoint(ticker);
-    if (primaryQuote) {
+    if (!ticker || ticker.trim().length === 0) {
+        console.warn('Invalid ticker provided');
+        return null;
+    }
+    
+    const cleanTicker = ticker.trim().toUpperCase();
+    
+    const primaryQuote = await getQuoteViaQuoteEndpoint(cleanTicker);
+    if (primaryQuote && validateQuoteData(primaryQuote)) {
         return primaryQuote;
     }
     
-    console.warn(`Primary quote method failed for ${ticker}, trying alternative.`);
-    const secondaryQuote = await getQuoteViaSummaryEndpoint(ticker);
+    console.warn(`Primary quote method failed for ${cleanTicker}, trying alternative.`);
+    const secondaryQuote = await getQuoteViaSummaryEndpoint(cleanTicker);
     
-    return secondaryQuote;
+    if (secondaryQuote && validateQuoteData(secondaryQuote)) {
+        return secondaryQuote;
+    }
+    
+    console.error(`All quote methods failed for ${cleanTicker}`);
+    return null;
 }
 
 
@@ -228,21 +249,3 @@ export async function getHistoricalData(ticker: string, startDate: string): Prom
     return [];
   }
 }
-
-
-// Helper function to get previous trading day date string
-function getPreviousTradingDay(): string {
-    const date = new Date();
-    const dayOfWeek = date.getDay(); // Sunday - 0, Monday - 1, ..., Saturday - 6
-    let daysToSubtract = 1; // Default for Tue-Fri
-    if (dayOfWeek === 0) { // Sunday
-        daysToSubtract = 2;
-    } else if (dayOfWeek === 6) { // Saturday
-        daysToSubtract = 1;
-    } else if (dayOfWeek === 1) { // Monday
-        daysToSubtract = 3;
-    }
-    date.setDate(date.getDate() - daysToSubtract);
-    return date.toISOString().split('T')[0];
-}
-
