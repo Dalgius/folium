@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -273,7 +272,7 @@ export default function Home() {
           renderSkeletons()
         ) : assets.length > 0 ? (
           <section>
-            <div className="flex items-center gap-4 mb-4">
+            <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold text-foreground font-headline">
                   {getFilterLabel(activeFilter)}
               </h2>
