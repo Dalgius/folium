@@ -95,18 +95,19 @@ async function getQuoteViaQuoteEndpoint(ticker: string): Promise<Quote | null> {
         let dailyChange: number | undefined;
         let dailyChangePercent: number | undefined;
 
-        // Method 1: Use pre-calculated values if market is open
-        if (result.regularMarketChange !== undefined && result.regularMarketChangePercent !== undefined) {
-            dailyChange = result.regularMarketChange;
-            // Handle both decimal (0.05) and percentage (5) formats
-            dailyChangePercent = Math.abs(result.regularMarketChangePercent) < 1 
-                ? result.regularMarketChangePercent * 100 
-                : result.regularMarketChangePercent;
-        }
-        // Method 2: Calculate from previous close if available
-        else if (result.regularMarketPreviousClose !== undefined && result.regularMarketPreviousClose > 0) {
+        // Method 1: Calculate from previous close (most reliable)
+        if (result.regularMarketPreviousClose && result.regularMarketPreviousClose > 0) {
             dailyChange = price - result.regularMarketPreviousClose;
             dailyChangePercent = (dailyChange / result.regularMarketPreviousClose) * 100;
+        }
+        // Method 2: Use pre-calculated values as a fallback
+        else if (result.regularMarketChange !== undefined && result.regularMarketChangePercent !== undefined) {
+            dailyChange = result.regularMarketChange;
+            // Handle both decimal (0.05) and percentage (5) formats
+            const changePercent = result.regularMarketChangePercent;
+            dailyChangePercent = Math.abs(changePercent) < 1 
+                ? changePercent * 100 
+                : changePercent;
         }
         // Method 3: Fallback to historical data
         else {
