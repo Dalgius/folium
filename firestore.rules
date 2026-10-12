@@ -1,17 +1,18 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Un asset può essere letto, aggiornato o eliminato solo dal suo proprietario.
+    // Ogni asset appartiene a un solo utente: solo lui può leggerlo, modificarlo o eliminarlo.
     match /assets/{assetId} {
-      allow read, update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
-      
-      // Un nuovo asset può essere creato da qualsiasi utente autenticato,
-      // a condizione che il campo userId corrisponda all'uid dell'utente che effettua la richiesta.
+      allow read, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+
+      // In modifica il proprietario non può essere cambiato.
+      allow update: if request.auth != null
+        && request.auth.uid == resource.data.userId
+        && request.resource.data.userId == resource.data.userId;
+
+      // Un nuovo asset può essere creato solo con il proprio userId.
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
     }
   }
 }
-
-    

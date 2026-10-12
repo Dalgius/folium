@@ -1,41 +1,55 @@
+'use client';
 
-"use client";
+import type { ComponentType } from 'react';
+import {
+  type LucideProps,
+  Landmark,
+  PiggyBank,
+  Layers,
+  CandlestickChart,
+  Briefcase,
+  Bitcoin,
+  Gem,
+} from 'lucide-react';
+import type { AssetType } from '@/types';
+import { typeMeta } from '@/lib/asset-types';
+import { cn } from '@/lib/utils';
 
-import React, { type ComponentType } from "react";
-import { type LucideProps, TrendingUp, Briefcase, Landmark, ArrowUp, ArrowDown, Minus } from "lucide-react";
-import { type AssetType } from "@/types";
-import { cn } from "@/lib/utils";
-
-type AssetIconMap = {
-  [key in AssetType]: ComponentType<LucideProps>;
-};
-
-const assetIconMap: AssetIconMap = {
-  'Azione': TrendingUp,
-  'ETF': Briefcase,
+const ICONS: Record<AssetType, ComponentType<LucideProps>> = {
   'Conto Bancario': Landmark,
+  'Conto Deposito': PiggyBank,
+  ETF: Layers,
+  Azione: CandlestickChart,
+  Fondo: Briefcase,
+  Crypto: Bitcoin,
+  Altro: Gem,
 };
 
-interface AssetIconProps extends LucideProps {
-  type: AssetType;
-}
-
-export const AssetIcon = ({ type, ...props }: AssetIconProps) => {
-  const Icon = assetIconMap[type] || Briefcase;
+export function AssetIcon({ type, ...props }: LucideProps & { type: AssetType }) {
+  const Icon = ICONS[type] ?? Gem;
   return <Icon {...props} />;
-};
-
-interface PerformanceIndicatorProps extends LucideProps {
-    performance: number;
 }
 
-export const PerformanceIndicator = ({ performance, className, ...props }: PerformanceIndicatorProps) => {
-    const Icon = performance > 0 ? ArrowUp : performance < 0 ? ArrowDown : Minus;
-    const colorClass = performance > 0 ? "text-green-600 bg-green-100" : performance < 0 ? "text-red-600 bg-red-100" : "text-muted-foreground bg-muted";
+/** Icona dell'asset su sfondo tinto con il colore della sua categoria. */
+export function AssetBadge({ type, className, size = 'md' }: { type: AssetType; className?: string; size?: 'sm' | 'md' | 'lg' }) {
+  const color = typeMeta(type).color;
+  return (
+    <span
+      className={cn(
+        'inline-flex shrink-0 items-center justify-center rounded-lg',
+        size === 'sm' && 'h-7 w-7',
+        size === 'md' && 'h-9 w-9',
+        size === 'lg' && 'h-11 w-11 rounded-xl',
+        className,
+      )}
+      style={{ backgroundColor: `color-mix(in srgb, ${color} 14%, transparent)`, color }}
+      aria-hidden
+    >
+      <AssetIcon type={type} className={size === 'lg' ? 'h-5 w-5' : 'h-4 w-4'} strokeWidth={2} />
+    </span>
+  );
+}
 
-    return (
-        <div className={cn("p-1 rounded-full", colorClass)}>
-            <Icon className={cn("h-4 w-4", className)} {...props} />
-        </div>
-    )
+export function CategoryDot({ type, className }: { type: AssetType; className?: string }) {
+  return <span className={cn('inline-block h-2.5 w-2.5 shrink-0 rounded-full', className)} style={{ backgroundColor: typeMeta(type).color }} aria-hidden />;
 }

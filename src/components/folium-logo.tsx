@@ -3,10 +3,10 @@ import { cn } from '@/lib/utils';
 
 export function FoliumLogo({ className, ...props }: React.SVGProps<SVGSVGElement>) {
   return (
-    <svg id="Livello_1" data-name="Livello 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 845.86 330.05" className={cn('fill-current', className)} {...props}>
+    <svg role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 845.86 330.05" className={cn('fill-current', className)} {...props}>
         <defs>
             <style>
-                {`.cls-1{fill:#4252b5;}.cls-2{fill:#4152b5;}.cls-3{fill:#fefefe;}`}
+                {`.cls-1,.cls-2{fill:currentColor;fill-rule:evenodd;}.cls-3{display:none;}`}
             </style>
         </defs>
         <g transform="translate(-260.83 -209.96)">
