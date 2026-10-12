@@ -1,258 +1,237 @@
-
 'use server';
+
 import yahooFinance from 'yahoo-finance2';
-import { AssetType, type Currency } from '@/types';
+import type { PricePoint } from '@/lib/portfolio';
+
+yahooFinance.suppressNotices(['yahooSurvey']);
+
+// ---------------------------------------------------------------------------
+// Cache in memoria (per istanza server) per non interrogare Yahoo a ogni richiesta
+// ---------------------------------------------------------------------------
+
+const cache = new Map<string, { expires: number; value: unknown }>();
+
+async function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {
+  const hit = cache.get(key);
+  if (hit && hit.expires > Date.now()) return hit.value as T;
+  const value = await load();
+  cache.set(key, { expires: Date.now() + ttlMs, value });
+  return value;
+}
+
+const QUOTE_TTL = 60 * 1000;
+const HISTORY_TTL = 6 * 60 * 60 * 1000;
+const MAX_SYMBOLS = 100;
+
+const cleanSymbols = (symbols: string[]) =>
+  Array.from(new Set(symbols.map(s => s?.trim().toUpperCase()).filter(s => s && s.length <= 32))).slice(0, MAX_SYMBOLS);
+
+/**
+ * Alcune borse quotano in sottounità (es. Londra in pence: "GBp").
+ * Converte prezzo e valuta nell'unità principale.
+ */
+function normalizeCurrency(currency: string | undefined): { currency: string | undefined; factor: number } {
+  switch (currency) {
+    case 'GBp':
+    case 'GBX':
+      return { currency: 'GBP', factor: 0.01 };
+    case 'ZAc':
+      return { currency: 'ZAR', factor: 0.01 };
+    case 'ILA':
+      return { currency: 'ILS', factor: 0.01 };
+    default:
+      return { currency: currency?.toUpperCase(), factor: 1 };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Ricerca
+// ---------------------------------------------------------------------------
 
 export interface SearchResult {
   ticker: string;
-  name: string | undefined;
+  name: string;
   exchange: string;
   type: string;
 }
 
-interface EquityOrEtfQuote {
-  symbol: string;
-  longname?: string;
-  shortname?: string;
-  exchange: string;
-  quoteType: 'EQUITY' | 'ETF';
-  isYahooFinance: true;
-}
-
-function isEquityOrEtf(quote: any): quote is EquityOrEtfQuote {
-  return (
-    quote &&
-    quote.isYahooFinance === true &&
-    (quote.quoteType === 'EQUITY' || quote.quoteType === 'ETF') &&
-    typeof quote.symbol === 'string' &&
-    !quote.symbol.includes('=')
-  );
-}
-
+const SEARCHABLE_TYPES = new Set(['EQUITY', 'ETF', 'MUTUALFUND', 'CRYPTOCURRENCY']);
 
 export async function searchSecurities(query: string): Promise<SearchResult[]> {
-  if (!query || query.length < 2) {
-    return [];
-  }
+  const q = query?.trim();
+  if (!q || q.length < 2 || q.length > 64) return [];
   try {
-    const results = await yahooFinance.search(query, { newsCount: 0 });
-    
-    return (results.quotes || []).flatMap((q): SearchResult[] => {
-      if (isEquityOrEtf(q)) {
-        return [{
-          ticker: q.symbol,
-          name: q.longname || q.shortname,
-          exchange: q.exchange,
-          type: q.quoteType
-        }];
-      }
-      return [];
+    const results = await cached(`search:${q.toLowerCase()}`, QUOTE_TTL, () =>
+      yahooFinance.search(q, { newsCount: 0, quotesCount: 12 }),
+    );
+    return (results.quotes ?? []).flatMap((item): SearchResult[] => {
+      const quote = item as Record<string, unknown>;
+      if (quote.isYahooFinance !== true || typeof quote.symbol !== 'string') return [];
+      if (!SEARCHABLE_TYPES.has(String(quote.quoteType)) || quote.symbol.includes('=')) return [];
+      return [{
+        ticker: quote.symbol,
+        name: String(quote.longname ?? quote.shortname ?? quote.symbol),
+        exchange: String(quote.exchDisp ?? quote.exchange ?? ''),
+        type: String(quote.quoteType),
+      }];
     });
   } catch (error) {
-    console.error('Error searching securities:', error);
+    console.error('Errore nella ricerca titoli:', error);
     return [];
   }
 }
 
+// ---------------------------------------------------------------------------
+// Quotazioni
+// ---------------------------------------------------------------------------
+
 export interface Quote {
-    price: number;
-    currency: string;
-    name: string;
-    dailyChange?: number;
-    dailyChangePercent?: number; // Should be a decimal, e.g., 0.025 for 2.5%
+  ticker: string;
+  price: number;
+  currency: string;
+  name: string;
+  /** Variazione giornaliera per unità */
+  dailyChange?: number;
+  /** Variazione giornaliera decimale (0.025 = +2,5%) */
+  dailyChangePercent?: number;
+  /** Timestamp ISO dell'ultima quotazione */
+  marketTime?: string;
 }
 
-function normalizePercentage(value: number | undefined): number | undefined {
-    if (value === undefined || value === null) return undefined;
-    if (value === 0) return 0;
-    
-    // Yahoo can return 2.5 (for 2.5%) or 0.025 (also for 2.5%).
-    // This ensures we always return a decimal representation (e.g., 0.025).
-    return Math.abs(value) > 1 ? value / 100 : value;
+type RawQuote = {
+  symbol: string;
+  regularMarketPrice?: number;
+  regularMarketPreviousClose?: number;
+  regularMarketChange?: number;
+  regularMarketChangePercent?: number;
+  regularMarketTime?: Date;
+  currency?: string;
+  longName?: string;
+  shortName?: string;
+};
+
+function toQuote(raw: RawQuote): Quote | null {
+  const { currency, factor } = normalizeCurrency(raw.currency);
+  if (!raw.regularMarketPrice || raw.regularMarketPrice <= 0 || !currency) return null;
+  const price = raw.regularMarketPrice * factor;
+
+  let dailyChange: number | undefined;
+  let dailyChangePercent: number | undefined;
+  if (raw.regularMarketPreviousClose && raw.regularMarketPreviousClose > 0) {
+    const previous = raw.regularMarketPreviousClose * factor;
+    dailyChange = price - previous;
+    dailyChangePercent = dailyChange / previous;
+  } else if (raw.regularMarketChange !== undefined && raw.regularMarketChangePercent !== undefined) {
+    dailyChange = raw.regularMarketChange * factor;
+    // Yahoo restituisce la percentuale già moltiplicata per 100
+    dailyChangePercent = raw.regularMarketChangePercent / 100;
+  }
+
+  return {
+    ticker: raw.symbol,
+    price,
+    currency,
+    name: raw.longName || raw.shortName || raw.symbol,
+    dailyChange,
+    dailyChangePercent,
+    marketTime: raw.regularMarketTime instanceof Date ? raw.regularMarketTime.toISOString() : undefined,
+  };
 }
 
-function getPreviousTradingDay(): string {
-    const date = new Date();
-    const dayOfWeek = date.getDay(); // Sunday - 0, Monday - 1, ..., Saturday - 6
-    let daysToSubtract = 1; // Default for Tue-Fri
-    if (dayOfWeek === 0) { // Sunday
-        daysToSubtract = 2;
-    } else if (dayOfWeek === 1) { // Monday
-        daysToSubtract = 3;
-    } else if (dayOfWeek === 6) { // Saturday
-        daysToSubtract = 1;
-    }
-    date.setDate(date.getDate() - daysToSubtract);
-    return date.toISOString().split('T')[0];
+async function fetchQuotes(symbols: string[]): Promise<RawQuote[]> {
+  try {
+    return (await yahooFinance.quote(symbols, { return: 'array' })) as RawQuote[];
+  } catch (error) {
+    // Un singolo simbolo non valido può far fallire l'intera richiesta: riprova uno per uno
+    console.warn('Richiesta multipla fallita, riprovo singolarmente:', error);
+    const single = await Promise.all(
+      symbols.map(s => yahooFinance.quote(s).then(r => r as RawQuote).catch(() => null)),
+    );
+    return single.filter((q): q is RawQuote => q !== null);
+  }
 }
 
-async function getQuoteViaQuoteEndpoint(ticker: string): Promise<Quote | null> {
-    try {
-        const result = await yahooFinance.quote(ticker, { fields: [
-            'regularMarketPrice', 
-            'currency',
-            'longName',
-            'shortName',
-            'regularMarketPreviousClose',
-            'regularMarketChange',
-            'regularMarketChangePercent',
-            'marketState',
-            'preMarketPrice',
-            'postMarketPrice',
-        ]});
-        
-        if (!result || !result.currency) {
-            return null;
-        }
-        
-        const name = result.longName || result.shortName || ticker;
-        const currency = result.currency;
-        let price = result.regularMarketPrice;
-
-        if (result.marketState === 'PRE' && result.preMarketPrice) {
-            price = result.preMarketPrice;
-        } else if (result.marketState === 'POST' && result.postMarketPrice) {
-            price = result.postMarketPrice;
-        }
-        
-        if (!price) {
-            return null;
-        }
-
-        let dailyChange: number | undefined;
-        let dailyChangePercent: number | undefined; // Always as decimal
-
-        // Method 1 (Preferred): Calculate from previous close. Most reliable.
-        if (result.regularMarketPreviousClose && result.regularMarketPreviousClose > 0) {
-            dailyChange = price - result.regularMarketPreviousClose;
-            dailyChangePercent = dailyChange / result.regularMarketPreviousClose;
-        } 
-        // Method 2 (Fallback): Use pre-calculated values from API.
-        else if (result.regularMarketChange !== undefined && result.regularMarketChangePercent !== undefined) {
-            dailyChange = result.regularMarketChange;
-            dailyChangePercent = normalizePercentage(result.regularMarketChangePercent);
-        } 
-        // Method 3 (Last Resort): Fallback to historical data to find previous close.
-        else {
-            try {
-                const historical = await getHistoricalData(ticker, getPreviousTradingDay());
-                if (historical.length > 0) {
-                    const lastClose = historical[historical.length - 1].close;
-                    if(lastClose > 0) {
-                        dailyChange = price - lastClose;
-                        dailyChangePercent = dailyChange / lastClose;
-                    }
-                }
-            } catch (histError) {
-                console.warn(`Historical data fallback failed for ${ticker}`, histError);
-            }
-        }
-
-        return { price, currency, name, dailyChange, dailyChangePercent };
-
-    } catch (error) {
-        if (error instanceof Error && (error.message.includes('404') || error.message.includes('Not Found'))) {
-            console.warn(`(Primary) Ticker not found: ${ticker}`);
-        } else {
-            console.error(`(Primary) Error getting quote for ${ticker}:`, error);
-        }
-        return null;
-    }
-}
-
-async function getQuoteViaSummaryEndpoint(ticker: string): Promise<Quote | null> {
-    try {
-        const result = await yahooFinance.quoteSummary(ticker, {
-            modules: ['price']
-        });
-        
-        const priceData = result.price;
-        if (!priceData || !priceData.regularMarketPrice || !priceData.currency) {
-            return null;
-        }
-        
-        return {
-            price: priceData.regularMarketPrice,
-            currency: priceData.currency,
-            name: priceData.longName || priceData.shortName || ticker,
-            dailyChange: priceData.regularMarketChange,
-            dailyChangePercent: normalizePercentage(priceData.regularMarketChangePercent),
-        };
-    } catch (error) {
-        console.error(`Alternative quote method failed for ${ticker}:`, error);
-        return null;
-    }
-}
-
-function validateQuoteData(quote: Quote): boolean {
-    const isValid =
-        quote.price > 0 &&
-        !!quote.currency &&
-        quote.currency.length === 3 &&
-        !!quote.name &&
-        quote.name.length > 0;
-    return isValid;
+/** Quotazioni correnti per più ticker in un'unica richiesta. */
+export async function getQuotes(tickers: string[]): Promise<Record<string, Quote>> {
+  const symbols = cleanSymbols(tickers);
+  if (symbols.length === 0) return {};
+  const key = `quotes:${[...symbols].sort().join(',')}`;
+  try {
+    return await cached(key, QUOTE_TTL, async () => {
+      const raw = await fetchQuotes(symbols);
+      const result: Record<string, Quote> = {};
+      for (const r of raw) {
+        const quote = toQuote(r);
+        if (quote) result[r.symbol.toUpperCase()] = quote;
+      }
+      return result;
+    });
+  } catch (error) {
+    console.error('Errore nel recupero delle quotazioni:', error);
+    return {};
+  }
 }
 
 export async function getQuote(ticker: string): Promise<Quote | null> {
-    if (!ticker || ticker.trim().length === 0) {
-        console.warn('Invalid ticker provided');
-        return null;
-    }
-    
-    const cleanTicker = ticker.trim().toUpperCase();
-    
-    const primaryQuote = await getQuoteViaQuoteEndpoint(cleanTicker);
-    if (primaryQuote && validateQuoteData(primaryQuote)) {
-        return primaryQuote;
-    }
-    
-    console.warn(`Primary quote method failed for ${cleanTicker}, trying alternative.`);
-    const secondaryQuote = await getQuoteViaSummaryEndpoint(cleanTicker);
-    
-    if (secondaryQuote && validateQuoteData(secondaryQuote)) {
-        return secondaryQuote;
-    }
-    
-    console.error(`All quote methods failed for ${cleanTicker}`);
-    return null;
+  const quotes = await getQuotes([ticker]);
+  return quotes[ticker.trim().toUpperCase()] ?? null;
 }
 
+// ---------------------------------------------------------------------------
+// Tassi di cambio
+// ---------------------------------------------------------------------------
 
-export async function getExchangeRate(from: Currency, to: Currency): Promise<number | null> {
-    if (from === to) return 1;
-    const ticker = `${from}${to}=X`;
-    try {
-        const result = await yahooFinance.quote(ticker);
-        if (result && result.regularMarketPrice) {
-            return result.regularMarketPrice;
-        }
-        console.warn(`Could not find exchange rate for ticker: ${ticker}`);
-        return null;
-    } catch (error) {
-        if (error instanceof Error && (error.message.includes('404') || error.message.includes('Not Found'))) {
-             console.warn(`Exchange rate not found for ${from} to ${to} (ticker: ${ticker})`);
-        } else {
-            console.error(`Error getting exchange rate for ${from} to ${to}:`, error);
-        }
-        return null;
-    }
-}
+const fxSymbol = (from: string, to: string) => `${from}${to}=X`;
 
-export interface HistoricalDataPoint {
-  date: Date;
-  close: number;
-}
+/** Tassi di cambio correnti verso `to` (default EUR). */
+export async function getExchangeRates(currencies: string[], to = 'EUR'): Promise<Record<string, number>> {
+  const unique = Array.from(new Set(currencies.map(c => c?.toUpperCase()).filter(Boolean)));
+  const rates: Record<string, number> = { [to]: 1 };
+  const needed = unique.filter(c => c !== to && /^[A-Z]{3}$/.test(c));
+  if (needed.length === 0) return rates;
 
-export async function getHistoricalData(ticker: string, startDate: string): Promise<HistoricalDataPoint[]> {
-  try {
-    const results = await yahooFinance.historical(ticker, {
-      period1: startDate,
-      interval: '1d'
-    });
-    return results.map(r => ({ date: r.date, close: r.close! })).filter(r => r.close);
-  } catch (error) {
-    console.warn(`Dati storici non trovati per ${ticker}. Potrebbe essere un ticker non valido o delistato.`, error);
-    return [];
+  const quotes = await getQuotes(needed.map(c => fxSymbol(c, to)));
+  for (const c of needed) {
+    const q = quotes[fxSymbol(c, to)];
+    if (q?.price) rates[c] = q.price;
   }
+  return rates;
+}
+
+// ---------------------------------------------------------------------------
+// Storico prezzi
+// ---------------------------------------------------------------------------
+
+async function fetchHistory(symbol: string, start: string): Promise<PricePoint[]> {
+  return cached(`history:${symbol}:${start}`, HISTORY_TTL, async () => {
+    const result = await yahooFinance.chart(symbol, { period1: start, interval: '1d' });
+    const { factor } = normalizeCurrency(result.meta?.currency);
+    return result.quotes
+      .filter(q => q.close != null && q.close > 0)
+      .map(q => ({ date: q.date.toISOString().slice(0, 10), close: (q.close as number) * factor }));
+  });
+}
+
+/** Storico delle chiusure giornaliere dalla data `start` (yyyy-MM-dd). */
+export async function getPriceHistory(tickers: string[], start: string): Promise<Record<string, PricePoint[]>> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return {};
+  const symbols = cleanSymbols(tickers);
+  const entries = await Promise.all(
+    symbols.map(async symbol => {
+      try {
+        return [symbol, await fetchHistory(symbol, start)] as const;
+      } catch (error) {
+        console.warn(`Storico non disponibile per ${symbol}:`, error);
+        return [symbol, []] as const;
+      }
+    }),
+  );
+  return Object.fromEntries(entries);
+}
+
+/** Storico dei cambi valuta→`to` dalla data `start`. */
+export async function getFxHistory(currencies: string[], start: string, to = 'EUR'): Promise<Record<string, PricePoint[]>> {
+  const needed = Array.from(new Set(currencies.map(c => c?.toUpperCase()))).filter(c => c && c !== to && /^[A-Z]{3}$/.test(c));
+  const history = await getPriceHistory(needed.map(c => fxSymbol(c, to)), start);
+  return Object.fromEntries(needed.map(c => [c, history[fxSymbol(c, to)] ?? []]));
 }

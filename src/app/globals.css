@@ -4,57 +4,78 @@
 
 @layer base {
   :root {
-    --background: 220 13% 96%; /* Light gray - #F0F2F5 */
-    --foreground: 231 48% 18%; /* Darker indigo for text */
+    --background: 220 23% 97%;
+    --foreground: 226 32% 13%;
     --card: 0 0% 100%;
-    --card-foreground: 231 48% 18%;
+    --card-foreground: 226 32% 13%;
     --popover: 0 0% 100%;
-    --popover-foreground: 231 48% 18%;
-    --primary: 231 48% 48%; /* Deep indigo - #3F51B5 */
+    --popover-foreground: 226 32% 13%;
+    /* Indaco del logo Folium (#4252b5) */
+    --primary: 232 47% 48%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 231 44% 87%;
-    --secondary-foreground: 231 48% 18%;
-    --muted: 231 44% 92%;
-    --muted-foreground: 231 48% 38%;
-    --accent: 231 44% 77%; /* Soft lavender - #9FA8DA */
-    --accent-foreground: 231 48% 18%;
-    --destructive: 0 84.2% 60.2%;
+    --secondary: 225 25% 94%;
+    --secondary-foreground: 226 32% 18%;
+    --muted: 225 22% 95%;
+    --muted-foreground: 223 11% 43%;
+    --accent: 230 45% 95%;
+    --accent-foreground: 232 47% 38%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
-    --border: 231 20% 85%;
-    --input: 231 20% 90%;
-    --ring: 231 48% 48%;
-    --chart-1: 231 48% 48%; /* Primary */
-    --chart-2: 231 44% 67%; 
-    --chart-3: 231 44% 77%; /* Accent */
-    --chart-4: 231 44% 87%; /* Secondary */
-    --chart-5: 231 48% 38%;
-    --radius: 0.5rem;
+    --border: 224 18% 90%;
+    --input: 224 16% 86%;
+    --ring: 232 47% 48%;
+    --radius: 0.75rem;
+
+    /* Variazioni positive / negative (testo, sempre affiancate da segno e icona) */
+    --positive: 145 70% 28%;
+    --negative: 0 66% 46%;
+
+    /* Palette categoriale (validata per daltonismo, ordine fisso) */
+    --cat-1: 213 68% 50%;
+    --cat-2: 17 82% 56%;
+    --cat-3: 159 73% 40%;
+    --cat-4: 41 100% 46%;
+    --cat-5: 337 70% 70%;
+    --cat-6: 120 100% 26%;
+    --cat-7: 248 62% 58%;
+
+    --chart-1: var(--primary);
+    --chart-grid: 224 18% 92%;
   }
+
   .dark {
-    --background: 231 48% 12%;
-    --foreground: 231 20% 90%;
-    --card: 231 48% 15%;
-    --card-foreground: 231 20% 90%;
-    --popover: 231 48% 12%;
-    --popover-foreground: 231 20% 90%;
-    --primary: 231 44% 77%; /* Soft lavender */
-    --primary-foreground: 231 48% 12%;
-    --secondary: 231 48% 20%;
-    --secondary-foreground: 231 20% 90%;
-    --muted: 231 48% 20%;
-    --muted-foreground: 231 20% 70%;
-    --accent: 231 48% 25%;
-    --accent-foreground: 231 20% 90%;
-    --destructive: 0 62.8% 30.6%;
+    --background: 224 22% 7%;
+    --foreground: 220 20% 93%;
+    --card: 222 20% 10%;
+    --card-foreground: 220 20% 93%;
+    --popover: 222 20% 11%;
+    --popover-foreground: 220 20% 93%;
+    --primary: 231 75% 72%;
+    --primary-foreground: 226 40% 10%;
+    --secondary: 222 16% 16%;
+    --secondary-foreground: 220 20% 93%;
+    --muted: 222 16% 14%;
+    --muted-foreground: 220 10% 62%;
+    --accent: 230 30% 18%;
+    --accent-foreground: 231 75% 80%;
+    --destructive: 0 65% 52%;
     --destructive-foreground: 0 0% 98%;
-    --border: 231 48% 25%;
-    --input: 231 48% 20%;
-    --ring: 231 44% 77%;
-    --chart-1: 231 44% 77%; /* Primary (Lavender) */
-    --chart-2: 231 44% 67%;
-    --chart-3: 231 48% 48%; /* Indigo */
-    --chart-4: 231 48% 25%;
-    --chart-5: 231 20% 90%;
+    --border: 222 15% 17%;
+    --input: 222 14% 22%;
+    --ring: 231 75% 72%;
+
+    --positive: 145 58% 55%;
+    --negative: 0 82% 70%;
+
+    --cat-1: 213 77% 56%;
+    --cat-2: 17 70% 50%;
+    --cat-3: 159 73% 36%;
+    --cat-4: 40 100% 39%;
+    --cat-5: 338 61% 58%;
+    --cat-6: 120 100% 26%;
+    --cat-7: 247 69% 72%;
+
+    --chart-grid: 222 15% 15%;
   }
 }
 
@@ -62,7 +83,18 @@
   * {
     @apply border-border;
   }
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+}
+
+@layer utilities {
+  /* Cifre a larghezza fissa per gli importi allineati */
+  .tabular {
+    font-variant-numeric: tabular-nums;
   }
 }

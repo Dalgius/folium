@@ -5,7 +5,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useRouter, usePathname } from 'next/navigation';
-import { Skeleton } from '@/components/ui/skeleton';
+import Image from 'next/image';
 
 interface AuthContextType {
   user: User | null;
@@ -36,25 +36,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!loading) {
       const isAuthPage = pathname === '/login' || pathname === '/signup';
       if (!user && !isAuthPage) {
-        router.push('/login');
+        router.replace('/login');
       }
       if (user && isAuthPage) {
-        router.push('/');
+        router.replace('/');
       }
     }
   }, [user, loading, router, pathname]);
 
   if (loading) {
     return (
-        <div className="flex items-center justify-center h-screen bg-background">
-            <div className="flex flex-col items-center gap-4">
-                <Skeleton className="h-12 w-12 rounded-full" />
-                <div className="space-y-2">
-                    <Skeleton className="h-4 w-[250px]" />
-                    <Skeleton className="h-4 w-[200px]" />
-                </div>
-            </div>
-        </div>
+      <div className="flex h-screen items-center justify-center bg-background">
+        <Image src="/logo.png?v=2" alt="Caricamento di Folium" width={48} height={48} className="animate-pulse" priority />
+      </div>
     );
   }
 
