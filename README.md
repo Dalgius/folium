@@ -41,13 +41,15 @@ npm run typecheck
 npm run build
 ```
 
+La registrazione dall'app è disattivata: l'account si crea da Firebase Console → Authentication → Utenti → Aggiungi utente (con "Abilita creazione" disattivato nelle impostazioni di Authentication).
+
 Le regole di sicurezza di Firestore sono in `firestore.rules` (`firebase deploy --only firestore:rules`).
 
 ## Struttura
 
 ```
 src/
-  app/                    pagine (dashboard, login, signup)
+  app/                    pagine (dashboard, login)
   components/dashboard/   intestazione, indicatori, grafico, allocazione, posizioni, dettaglio
   components/forms/       dialog di inserimento e modifica
   hooks/use-portfolio.ts  caricamento dati, quotazioni live e operazioni

@@ -34,7 +34,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (!loading) {
-      const isAuthPage = pathname === '/login' || pathname === '/signup';
+      const isAuthPage = pathname === '/login';
       if (!user && !isAuthPage) {
         router.replace('/login');
       }
@@ -52,7 +52,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     );
   }
 
-  const isAuthPage = pathname === '/login' || pathname === '/signup';
+  const isAuthPage = pathname === '/login';
   if (!user && !isAuthPage) {
       return null;
   }
