@@ -86,6 +86,7 @@ export default function Dashboard() {
         initialKind={dialog?.kind === 'add' ? dialog.initial : null}
         assets={assets}
         onCreate={portfolio.create}
+        onImport={portfolio.importPositions}
       />
       <TransactionDialog asset={dialogAsset} open={dialog?.kind === 'transaction'} onOpenChange={closeDialog} onSubmit={portfolio.addTransaction} />
       <BalanceDialog asset={dialogAsset} open={dialog?.kind === 'balance'} onOpenChange={closeDialog} onSubmit={portfolio.setBalance} />

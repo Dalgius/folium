@@ -38,6 +38,12 @@ export function EmptyState({ onAdd }: { onAdd: (kind: AddKind) => void }) {
           </button>
         ))}
       </div>
+      <div className="border-t px-5 py-3 text-center text-sm text-muted-foreground">
+        Investi con Directa?{' '}
+        <button type="button" onClick={() => onAdd('import')} className="font-medium text-primary hover:underline">
+          Importa il portafoglio dal file CSV
+        </button>
+      </div>
     </Card>
   );
 }

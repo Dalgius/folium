@@ -165,6 +165,46 @@ export function usePortfolio() {
     [persist, fail, toast, fx, refreshMarket],
   );
 
+  /**
+   * Importa posizioni da un broker. Se `replaceId` è indicato, la posizione
+   * esistente viene allineata a quella importata (operazioni sostituite).
+   */
+  const importPositions = useCallback(
+    async (items: { data: NewAsset; replaceId?: string }[]) => {
+      let imported = 0;
+      const failed: string[] = [];
+      // Elenco aggiornato localmente: lo stato React si aggiorna solo al render successivo
+      let list = [...assetsRef.current];
+      for (const { data, replaceId } of items) {
+        try {
+          if (replaceId) {
+            const existing = findAsset(replaceId);
+            if (!existing) continue;
+            const saved = await saveAsset({ ...existing, ...data, id: existing.id, name: existing.name });
+            replace(saved);
+            list = list.map(a => (a.id === saved.id ? saved : a));
+          } else {
+            const created = await addAsset(data);
+            setAssets(current => [...current, created]);
+            list.push(created);
+          }
+          imported++;
+        } catch (error) {
+          console.error('Importazione non riuscita per', data.name, error);
+          failed.push(data.name);
+        }
+      }
+      if (failed.length) {
+        toast({ title: `Importati ${imported} titoli su ${items.length}`, description: `Non riusciti: ${failed.join(', ')}`, variant: 'destructive' });
+      } else {
+        toast({ title: `Importati ${imported} titoli` });
+      }
+      refreshMarket(list);
+      return failed.length === 0;
+    },
+    [toast, refreshMarket],
+  );
+
   const addTransaction = useCallback(
     async (assetId: string, tx: Omit<Transaction, 'id'>) => {
       const asset = findAsset(assetId);
@@ -241,6 +281,7 @@ export function usePortfolio() {
     lastRefresh,
     refresh: () => refreshMarket(assetsRef.current, { silent: false }),
     create,
+    importPositions,
     addTransaction,
     deleteTransaction,
     setBalance,
