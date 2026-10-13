@@ -5,6 +5,19 @@ import type { PricePoint } from '@/lib/portfolio';
 
 yahooFinance.suppressNotices(['yahooSurvey']);
 
+// Yahoo espone gli stessi dati su due host: se uno risponde "Too Many Requests"
+// (succede con gli IP dei server cloud) si prova l'altro
+const YAHOO_HOSTS = ['query1.finance.yahoo.com', 'query2.finance.yahoo.com'] as const;
+let hostIndex = 0;
+yahooFinance.setGlobalConfig({ YF_QUERY_HOST: YAHOO_HOSTS[hostIndex] });
+
+function switchYahooHost() {
+  hostIndex = (hostIndex + 1) % YAHOO_HOSTS.length;
+  yahooFinance.setGlobalConfig({ YF_QUERY_HOST: YAHOO_HOSTS[hostIndex] });
+}
+
+const currentYahooHost = () => YAHOO_HOSTS[hostIndex];
+
 // ---------------------------------------------------------------------------
 // Cache in memoria (per istanza server) per non interrogare Yahoo a ogni richiesta
 // ---------------------------------------------------------------------------
@@ -69,6 +82,8 @@ async function withYahoo<T>(request: () => Promise<T>): Promise<T> {
       return await request();
     } catch (error) {
       if (!isRateLimited(error) || attempt >= RETRY_DELAYS_MS.length) throw error;
+      // Il prossimo tentativo esce dall'altro host di Yahoo
+      switchYahooHost();
     } finally {
       release();
     }
@@ -266,7 +281,10 @@ export async function getQuotes(tickers: string[]): Promise<Record<string, Quote
     }
   });
   if (failed) {
-    console.warn(`Quotazioni: ${symbols.length - failed} ok, ${failed} non disponibili (${rateLimited} per limite di frequenza di Yahoo)`);
+    console.warn(
+      `Quotazioni: ${symbols.length - failed} ok, ${failed} non disponibili (${rateLimited} per limite di frequenza di Yahoo); ` +
+        `host ${currentYahooHost()}, regione ${process.env.VERCEL_REGION ?? 'locale'}`,
+    );
   }
 
   const result: Record<string, Quote> = {};
