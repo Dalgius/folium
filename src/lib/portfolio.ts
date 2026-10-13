@@ -180,7 +180,7 @@ export function depositInterest(asset: Asset, today: Date = new Date()): Deposit
 export type FxRates = Record<string, number>;
 
 export const fxRate = (rates: FxRates, currency: string) =>
-  currency === BASE_CURRENCY ? 1 : rates[currency] ?? null;
+  currency === BASE_CURRENCY ? 1 : rates?.[currency] ?? null;
 
 export interface Holding {
   asset: Asset;
@@ -407,7 +407,7 @@ export function buildHistory({ assets, prices, fxHistory, fxNow, start, end = to
   }
   const fxAt = (currency: string, day: string): number | null => {
     if (currency === BASE_CURRENCY) return 1;
-    return fxLookups.get(currency)?.(day) ?? fxNow[currency] ?? null;
+    return fxLookups.get(currency)?.(day) ?? fxNow?.[currency] ?? null;
   };
 
   const marketState = market.map(asset => {

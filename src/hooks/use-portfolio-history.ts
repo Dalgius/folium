@@ -77,7 +77,7 @@ export function usePortfolioHistory(assets: Asset[], fx: FxRates, period: Period
       currencies.length ? getFxHistory(currencies, fetchFrom) : Promise.resolve({}),
     ])
       .then(([prices, fxHistory]) => {
-        if (!cancelled) setData({ key, prices, fxHistory });
+        if (!cancelled) setData({ key, prices: prices ?? {}, fxHistory: fxHistory ?? {} });
       })
       .catch(err => {
         console.error('Storico non disponibile', err);
