@@ -96,6 +96,8 @@ export interface Quote {
   dailyChangePercent?: number;
   /** Timestamp ISO dell'ultima quotazione */
   marketTime?: string;
+  /** Tipo di strumento secondo Yahoo (EQUITY, ETF, MUTUALFUND, CRYPTOCURRENCY…) */
+  quoteType?: string;
 }
 
 type RawQuote = {
@@ -108,6 +110,7 @@ type RawQuote = {
   currency?: string;
   longName?: string;
   shortName?: string;
+  quoteType?: string;
 };
 
 function toQuote(raw: RawQuote): Quote | null {
@@ -135,6 +138,7 @@ function toQuote(raw: RawQuote): Quote | null {
     dailyChange,
     dailyChangePercent,
     marketTime: raw.regularMarketTime instanceof Date ? raw.regularMarketTime.toISOString() : undefined,
+    quoteType: raw.quoteType,
   };
 }
 
@@ -175,6 +179,90 @@ export async function getQuotes(tickers: string[]): Promise<Record<string, Quote
 export async function getQuote(ticker: string): Promise<Quote | null> {
   const quotes = await getQuotes([ticker]);
   return quotes[ticker.trim().toUpperCase()] ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Abbinamento titoli importati da un broker
+// ---------------------------------------------------------------------------
+
+export interface SecurityToMatch {
+  isin: string;
+  /** Simboli Yahoo probabili, in ordine di preferenza */
+  candidates: string[];
+  currency: string;
+}
+
+export interface SecurityMatch {
+  symbol: string;
+  name: string;
+  quoteType?: string;
+  price?: number;
+  currency?: string;
+  /** Come è stato trovato: dal ticker del broker o cercando l'ISIN */
+  source: 'ticker' | 'isin';
+}
+
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (next < items.length) {
+        const i = next++;
+        results[i] = await fn(items[i]);
+      }
+    }),
+  );
+  return results;
+}
+
+/**
+ * Trova il simbolo Yahoo di ciascun titolo: prima prova i ticker candidati
+ * (verificando che la valuta coincida), poi cerca per ISIN.
+ */
+export async function matchSecurities(items: SecurityToMatch[]): Promise<(SecurityMatch | null)[]> {
+  const list = items.slice(0, MAX_SYMBOLS);
+  const quotes = await getQuotes(list.flatMap(i => i.candidates));
+
+  const matches: (SecurityMatch | null)[] = list.map(item => {
+    for (const candidate of item.candidates) {
+      const q = quotes[candidate.toUpperCase()];
+      if (q && q.currency === item.currency.toUpperCase()) {
+        return { symbol: q.ticker, name: q.name, quoteType: q.quoteType, price: q.price, currency: q.currency, source: 'ticker' };
+      }
+    }
+    return null;
+  });
+
+  // Ricerca per ISIN per i titoli non trovati
+  const pending = list.map((item, i) => ({ item, i })).filter(({ i }) => !matches[i]);
+  const found = await mapLimit(pending, 4, async ({ item }) => {
+    if (!/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(item.isin)) return null;
+    const results = await searchSecurities(item.isin);
+    if (results.length === 0) return null;
+    const preferred =
+      results.find(r => item.candidates.some(c => c.toUpperCase() === r.ticker.toUpperCase())) ??
+      (item.currency === 'EUR' ? results.find(r => r.ticker.endsWith('.MI')) : undefined) ??
+      results[0];
+    return preferred;
+  });
+
+  const extraQuotes = await getQuotes(found.filter(Boolean).map(r => r!.ticker));
+  pending.forEach(({ i }, k) => {
+    const result = found[k];
+    if (!result) return;
+    const q = extraQuotes[result.ticker.toUpperCase()];
+    matches[i] = {
+      symbol: result.ticker,
+      name: q?.name ?? result.name,
+      quoteType: result.type,
+      price: q?.price,
+      currency: q?.currency,
+      source: 'isin',
+    };
+  });
+
+  return matches;
 }
 
 // ---------------------------------------------------------------------------

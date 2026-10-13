@@ -12,6 +12,7 @@ Costruita con Next.js 15, Firebase (Auth + Firestore), Tailwind, Recharts e Yaho
 - **Titoli quotati**: ricerca per nome, ticker o ISIN; storico di acquisti e vendite con commissioni; prezzo medio di carico (costo medio ponderato); quotazioni aggiornate automaticamente all'apertura e ogni 5 minuti, con conversione in EUR delle valute estere (anche sterline quotate in pence).
 - **Conti correnti e altri beni**: storico dei saldi, così si vede come cambiano nel tempo.
 - **Conti deposito**: tasso lordo, ritenuta (26% di default), apertura e scadenza del vincolo, stima degli interessi netti maturati e a scadenza, elenco delle prossime scadenze.
+- **Importazione da Directa**: carica il CSV del portafoglio esportato da Directa; i titoli vengono abbinati ai simboli di Yahoo Finance (dal ticker o dall'ISIN), con un'anteprima in cui correggere gli abbinamenti dubbi. Poiché il file non contiene le date di acquisto, ogni posizione è registrata come un unico acquisto al prezzo medio di carico; reimportando un file più recente si possono aggiornare le posizioni già presenti.
 - **Modalità privacy** per nascondere gli importi, **tema chiaro/scuro/sistema**, layout responsive.
 
 ## Avvio
