@@ -20,7 +20,8 @@ import { ConfirmDialog } from '@/components/forms/confirm-dialog';
 
 type DialogState =
   | { kind: 'add'; initial?: AddKind }
-  | { kind: 'transaction' | 'balance' | 'edit' | 'delete'; assetId: string }
+  | { kind: 'transaction'; assetId: string; txId?: string }
+  | { kind: 'balance' | 'edit' | 'delete'; assetId: string }
   | null;
 
 export default function Dashboard() {
@@ -88,7 +89,13 @@ export default function Dashboard() {
         onCreate={portfolio.create}
         onImport={portfolio.importPositions}
       />
-      <TransactionDialog asset={dialogAsset} open={dialog?.kind === 'transaction'} onOpenChange={closeDialog} onSubmit={portfolio.addTransaction} />
+      <TransactionDialog
+        asset={dialogAsset}
+        transaction={dialog?.kind === 'transaction' && dialog.txId ? dialogAsset?.transactions?.find(t => t.id === dialog.txId) ?? null : null}
+        open={dialog?.kind === 'transaction'}
+        onOpenChange={closeDialog}
+        onSubmit={(assetId, tx, txId) => (txId ? portfolio.updateTransaction(assetId, txId, tx) : portfolio.addTransaction(assetId, tx))}
+      />
       <BalanceDialog asset={dialogAsset} open={dialog?.kind === 'balance'} onOpenChange={closeDialog} onSubmit={portfolio.setBalance} />
       <EditAssetDialog asset={dialogAsset} open={dialog?.kind === 'edit'} onOpenChange={closeDialog} onSubmit={portfolio.updateDetails} />
       <ConfirmDialog
@@ -109,6 +116,7 @@ export default function Dashboard() {
         open={!!selected}
         onOpenChange={open => !open && setSelectedId(null)}
         onAction={handleAction}
+        onEditTransaction={(assetId, txId) => setDialog({ kind: 'transaction', assetId, txId })}
         onDeleteTransaction={portfolio.deleteTransaction}
         onDeleteBalance={portfolio.deleteBalance}
       />

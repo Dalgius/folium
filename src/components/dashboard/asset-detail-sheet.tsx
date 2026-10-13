@@ -24,6 +24,7 @@ interface AssetDetailSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAction: (action: HoldingAction, assetId: string) => void;
+  onEditTransaction: (assetId: string, txId: string) => void;
   onDeleteTransaction: (assetId: string, txId: string) => Promise<boolean>;
   onDeleteBalance: (assetId: string, date: string) => Promise<boolean>;
 }
@@ -39,7 +40,7 @@ function Metric({ label, children, className }: { label: string; children: React
   );
 }
 
-export function AssetDetailSheet({ holding, open, onOpenChange, onAction, onDeleteTransaction, onDeleteBalance }: AssetDetailSheetProps) {
+export function AssetDetailSheet({ holding, open, onOpenChange, onAction, onEditTransaction, onDeleteTransaction, onDeleteBalance }: AssetDetailSheetProps) {
   const [pendingDelete, setPendingDelete] = useState<{ kind: 'tx' | 'balance'; id: string; label: string } | null>(null);
 
   if (!holding) return null;
@@ -140,6 +141,14 @@ export function AssetDetailSheet({ holding, open, onOpenChange, onAction, onDele
                         </p>
                       </div>
                       <Money value={tx.quantity * tx.price} currency={asset.currency} className="font-medium" />
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Modifica operazione"
+                        onClick={() => onEditTransaction(asset.id, tx.id)}
+                      >
+                        <Pencil />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon-sm"

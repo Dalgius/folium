@@ -228,6 +228,18 @@ export function usePortfolio() {
     [persist],
   );
 
+  const updateTransaction = useCallback(
+    async (assetId: string, txId: string, tx: Omit<Transaction, 'id'>) => {
+      const asset = findAsset(assetId);
+      if (!asset) return false;
+      return persist(
+        { ...asset, transactions: (asset.transactions ?? []).map(t => (t.id === txId ? { ...tx, id: txId } : t)) },
+        'Operazione aggiornata',
+      );
+    },
+    [persist],
+  );
+
   const deleteTransaction = useCallback(
     async (assetId: string, txId: string) => {
       const asset = findAsset(assetId);
@@ -294,6 +306,7 @@ export function usePortfolio() {
     create,
     importPositions,
     addTransaction,
+    updateTransaction,
     deleteTransaction,
     setBalance,
     deleteBalance,
