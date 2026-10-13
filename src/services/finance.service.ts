@@ -19,6 +19,13 @@ async function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Pr
   return value;
 }
 
+/**
+ * Yahoo cambia spesso il formato delle risposte: con la validazione attiva
+ * la libreria scarta l'intera risposta se un solo campo non corrisponde allo
+ * schema atteso. Accettiamo i dati così come arrivano e li controlliamo noi.
+ */
+const LENIENT = { validateResult: false } as const;
+
 const QUOTE_TTL = 60 * 1000;
 const HISTORY_TTL = 6 * 60 * 60 * 1000;
 const MAX_SYMBOLS = 100;
@@ -61,12 +68,14 @@ export async function searchSecurities(query: string): Promise<SearchResult[]> {
   const q = query?.trim();
   if (!q || q.length < 2 || q.length > 64) return [];
   try {
-    const results = await cached(`search:${q.toLowerCase()}`, QUOTE_TTL, () =>
-      yahooFinance.search(q, { newsCount: 0, quotesCount: 12 }),
-    );
-    return (results.quotes ?? []).flatMap((item): SearchResult[] => {
+    const key = `search:${q.toLowerCase()}`;
+    const hit = cache.get(key);
+    const results = (hit && hit.expires > Date.now()
+      ? hit.value
+      : await yahooFinance.search(q, { newsCount: 0, quotesCount: 12 }, LENIENT)) as { quotes?: unknown[] };
+    const found = (results?.quotes ?? []).flatMap((item: unknown): SearchResult[] => {
       const quote = item as Record<string, unknown>;
-      if (quote.isYahooFinance !== true || typeof quote.symbol !== 'string') return [];
+      if (quote.isYahooFinance === false || typeof quote.symbol !== 'string') return [];
       if (!SEARCHABLE_TYPES.has(String(quote.quoteType)) || quote.symbol.includes('=')) return [];
       return [{
         ticker: quote.symbol,
@@ -75,6 +84,9 @@ export async function searchSecurities(query: string): Promise<SearchResult[]> {
         type: String(quote.quoteType),
       }];
     });
+    // Non memorizziamo i risultati vuoti, spesso dovuti a errori temporanei
+    if (found.length) cache.set(key, { expires: Date.now() + QUOTE_TTL, value: results });
+    return found;
   } catch (error) {
     console.error('Errore nella ricerca titoli:', error);
     return [];
@@ -106,12 +118,25 @@ type RawQuote = {
   regularMarketPreviousClose?: number;
   regularMarketChange?: number;
   regularMarketChangePercent?: number;
-  regularMarketTime?: Date;
+  regularMarketTime?: Date | number;
   currency?: string;
   longName?: string;
   shortName?: string;
   quoteType?: string;
 };
+
+/** Data da Date o timestamp Unix (secondi o millisecondi). */
+function toDate(value: unknown): Date | null {
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value === 'number') return new Date(value < 1e11 ? value * 1000 : value);
+  if (typeof value === 'string') {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
+
+const toIsoTime = (value: unknown) => toDate(value)?.toISOString();
 
 function toQuote(raw: RawQuote): Quote | null {
   const { currency, factor } = normalizeCurrency(raw.currency);
@@ -137,22 +162,31 @@ function toQuote(raw: RawQuote): Quote | null {
     name: raw.longName || raw.shortName || raw.symbol,
     dailyChange,
     dailyChangePercent,
-    marketTime: raw.regularMarketTime instanceof Date ? raw.regularMarketTime.toISOString() : undefined,
+    marketTime: toIsoTime(raw.regularMarketTime),
     quoteType: raw.quoteType,
   };
 }
 
 async function fetchQuotes(symbols: string[]): Promise<RawQuote[]> {
   try {
-    return (await yahooFinance.quote(symbols, { return: 'array' })) as RawQuote[];
+    const result = await yahooFinance.quote(symbols, { return: 'array' }, LENIENT);
+    return (Array.isArray(result) ? result : []) as RawQuote[];
   } catch (error) {
-    // Un singolo simbolo non valido può far fallire l'intera richiesta: riprova uno per uno
-    console.warn('Richiesta multipla fallita, riprovo singolarmente:', error);
-    const single = await Promise.all(
-      symbols.map(s => yahooFinance.quote(s).then(r => r as RawQuote).catch(() => null)),
+    // Un singolo simbolo non valido può far fallire l'intera richiesta: riprova uno
+    // per uno, pochi alla volta per non incorrere nei limiti di Yahoo
+    console.warn('Richiesta multipla fallita, riprovo singolarmente:', describeError(error));
+    const single = await mapLimit(symbols, 3, s =>
+      yahooFinance.quote(s, {}, LENIENT).then(r => (r ?? null) as RawQuote | null).catch(error => {
+        console.warn(`Quotazione non disponibile per ${s}:`, describeError(error));
+        return null;
+      }),
     );
-    return single.filter((q): q is RawQuote => q !== null);
+    return single.filter((q): q is RawQuote => !!q && typeof q.symbol === 'string');
   }
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
 }
 
 /** Quotazioni correnti per più ticker in un'unica richiesta. */
@@ -160,16 +194,18 @@ export async function getQuotes(tickers: string[]): Promise<Record<string, Quote
   const symbols = cleanSymbols(tickers);
   if (symbols.length === 0) return {};
   const key = `quotes:${[...symbols].sort().join(',')}`;
+  const hit = cache.get(key);
+  if (hit && hit.expires > Date.now()) return hit.value as Record<string, Quote>;
   try {
-    return await cached(key, QUOTE_TTL, async () => {
-      const raw = await fetchQuotes(symbols);
-      const result: Record<string, Quote> = {};
-      for (const r of raw) {
-        const quote = toQuote(r);
-        if (quote) result[r.symbol.toUpperCase()] = quote;
-      }
-      return result;
-    });
+    const raw = await fetchQuotes(symbols);
+    const result: Record<string, Quote> = {};
+    for (const r of raw) {
+      const quote = toQuote(r);
+      if (quote) result[r.symbol.toUpperCase()] = quote;
+    }
+    // Un risultato vuoto di solito indica un errore temporaneo: non lo memorizziamo
+    if (Object.keys(result).length) cache.set(key, { expires: Date.now() + QUOTE_TTL, value: result });
+    return result;
   } catch (error) {
     console.error('Errore nel recupero delle quotazioni:', error);
     return {};
@@ -220,7 +256,13 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
  * Trova il simbolo Yahoo di ciascun titolo: prima prova i ticker candidati
  * (verificando che la valuta coincida), poi cerca per ISIN.
  */
-export async function matchSecurities(items: SecurityToMatch[]): Promise<(SecurityMatch | null)[]> {
+export interface MatchResult {
+  matches: (SecurityMatch | null)[];
+  /** false se Yahoo non ha restituito nulla (né quotazioni né risultati di ricerca) */
+  reachable: boolean;
+}
+
+export async function matchSecurities(items: SecurityToMatch[]): Promise<MatchResult> {
   const list = items.slice(0, MAX_SYMBOLS);
   const quotes = await getQuotes(list.flatMap(i => i.candidates));
 
@@ -236,10 +278,12 @@ export async function matchSecurities(items: SecurityToMatch[]): Promise<(Securi
 
   // Ricerca per ISIN per i titoli non trovati
   const pending = list.map((item, i) => ({ item, i })).filter(({ i }) => !matches[i]);
-  const found = await mapLimit(pending, 4, async ({ item }) => {
+  let searchAnswered = false;
+  const found = await mapLimit(pending, 2, async ({ item }) => {
     if (!/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(item.isin)) return null;
     const results = await searchSecurities(item.isin);
     if (results.length === 0) return null;
+    searchAnswered = true;
     const preferred =
       results.find(r => item.candidates.some(c => c.toUpperCase() === r.ticker.toUpperCase())) ??
       (item.currency === 'EUR' ? results.find(r => r.ticker.endsWith('.MI')) : undefined) ??
@@ -262,7 +306,7 @@ export async function matchSecurities(items: SecurityToMatch[]): Promise<(Securi
     };
   });
 
-  return matches;
+  return { matches, reachable: Object.keys(quotes).length > 0 || searchAnswered };
 }
 
 // ---------------------------------------------------------------------------
@@ -292,11 +336,14 @@ export async function getExchangeRates(currencies: string[], to = 'EUR'): Promis
 
 async function fetchHistory(symbol: string, start: string): Promise<PricePoint[]> {
   return cached(`history:${symbol}:${start}`, HISTORY_TTL, async () => {
-    const result = await yahooFinance.chart(symbol, { period1: start, interval: '1d' });
-    const { factor } = normalizeCurrency(result.meta?.currency);
-    return result.quotes
-      .filter(q => q.close != null && q.close > 0)
-      .map(q => ({ date: q.date.toISOString().slice(0, 10), close: (q.close as number) * factor }));
+    const result = await yahooFinance.chart(symbol, { period1: start, interval: '1d', return: 'array' }, LENIENT);
+    const { factor } = normalizeCurrency(result?.meta?.currency);
+    const quotes: { date?: unknown; close?: number | null }[] = result?.quotes ?? [];
+    return quotes.flatMap(q => {
+      const date = toDate(q.date);
+      if (!date || q.close == null || !(q.close > 0)) return [];
+      return [{ date: date.toISOString().slice(0, 10), close: q.close * factor }];
+    });
   });
 }
 

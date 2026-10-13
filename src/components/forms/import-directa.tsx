@@ -6,7 +6,7 @@ import type { Asset, AssetType, NewAsset } from '@/types';
 import { assetTypeFromQuoteType, typeMeta } from '@/lib/asset-types';
 import { isDirectaPortfolio, parseDirectaPortfolio, type DirectaPosition } from '@/lib/importers/directa';
 import { todayInput } from '@/lib/forms';
-import { getQuote, matchSecurities, type SecurityMatch } from '@/services/finance.service';
+import { getQuote, matchSecurities, searchSecurities, type Quote, type SecurityMatch } from '@/services/finance.service';
 import { newId } from '@/services/asset.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -53,7 +53,7 @@ function displayName(row: Row): string {
 
 function rowIssue(row: Row): { level: 'error' | 'warning'; text: string } | null {
   if (!row.symbol) return { level: 'error', text: 'Titolo non trovato su Yahoo Finance: inserisci il simbolo a mano' };
-  if (!row.match) return null;
+  if (!row.match) return { level: 'warning', text: 'Nessuna quotazione per questo simbolo: verificalo (per Borsa Italiana serve .MI). Se lo importi comunque uso il prezzo di Directa' };
   if (row.match.currency && row.match.currency !== row.position.currency) {
     return { level: 'warning', text: `Valuta diversa: Yahoo ${row.match.currency}, Directa ${row.position.currency}` };
   }
@@ -73,6 +73,7 @@ export function ImportDirecta({ assets, onImport, onBack }: ImportDirectaProps) 
   const [matching, setMatching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [unreachable, setUnreachable] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const existingBySymbol = useMemo(() => {
@@ -112,9 +113,11 @@ export function ImportDirecta({ assets, onImport, onBack }: ImportDirectaProps) 
       setRows(initial);
       setMatching(true);
 
-      const matches = await matchSecurities(
+      setUnreachable(false);
+      const { matches, reachable } = await matchSecurities(
         portfolio.positions.map(p => ({ isin: p.isin, candidates: p.yahooCandidates, currency: p.currency })),
       );
+      setUnreachable(!reachable);
       setRows(initial.map((row, i) => {
         const match = matches[i] ?? null;
         const symbol = match?.symbol ?? '';
@@ -124,24 +127,46 @@ export function ImportDirecta({ assets, onImport, onBack }: ImportDirectaProps) 
         return { ...next, include: !!symbol && !existingBySymbol.has(symbol.toUpperCase()) && !rowIssue(next) };
       }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Impossibile leggere il file.');
+      console.error(e);
+      // Se l'abbinamento fallisce le righe restano modificabili a mano
+      setUnreachable(true);
+      setRows(current => current?.map(r => ({ ...r, checking: false })) ?? null);
+      if (!(e instanceof Error) || !/Directa|Colonne|Intestazione/.test(e.message)) return;
+      setError(e.message);
+      setRows(null);
     } finally {
       setMatching(false);
     }
   }
 
+  /**
+   * Cerca la quotazione del simbolo inserito a mano. Se non la trova prova
+   * ad aggiungere ".MI" (Borsa Italiana) e infine la ricerca per nome o ticker.
+   */
+  async function resolveSymbol(symbol: string, currency: string): Promise<Quote | null> {
+    const direct = await getQuote(symbol);
+    if (direct) return direct;
+    if (!symbol.includes('.') && currency === 'EUR') {
+      const milan = await getQuote(`${symbol}.MI`);
+      if (milan) return milan;
+    }
+    const [first] = await searchSecurities(symbol);
+    return first ? getQuote(first.ticker) : null;
+  }
+
   async function changeSymbol(row: Row, value: string) {
     const symbol = value.trim().toUpperCase();
-    if (symbol === row.symbol) return;
+    if (symbol === row.symbol && row.match) return;
     if (!symbol) {
       update(row.key, { symbol: '', match: null, include: false });
       return;
     }
     update(row.key, { symbol, checking: true });
-    const quote = await getQuote(symbol);
+    const quote = await resolveSymbol(symbol, row.position.currency);
     update(row.key, {
       checking: false,
-      match: quote ? { symbol, name: quote.name, quoteType: quote.quoteType, price: quote.price, currency: quote.currency, source: 'ticker' } : null,
+      symbol: quote?.ticker.toUpperCase() ?? symbol,
+      match: quote ? { symbol: quote.ticker, name: quote.name, quoteType: quote.quoteType, price: quote.price, currency: quote.currency, source: 'ticker' } : null,
       include: !!quote,
     });
   }
@@ -250,6 +275,16 @@ export function ImportDirecta({ assets, onImport, onBack }: ImportDirectaProps) 
           }}
         />
       </div>
+
+      {unreachable && !matching && (
+        <Alert variant="destructive">
+          <XCircle className="h-4 w-4" />
+          <AlertDescription>
+            Yahoo Finance non ha risposto, quindi nessun titolo è stato abbinato. Riprova tra qualche minuto con «Cambia file»
+            oppure inserisci i simboli a mano (per Borsa Italiana basta il ticker: aggiungo io «.MI»).
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Alert>
         <Info className="h-4 w-4" />
