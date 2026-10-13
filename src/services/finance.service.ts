@@ -26,6 +26,56 @@ async function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Pr
  */
 const LENIENT = { validateResult: false } as const;
 
+// ---------------------------------------------------------------------------
+// Limite di frequenza: Yahoo rifiuta (HTTP 429) le raffiche di richieste dallo
+// stesso IP. Tutte le chiamate passano da qui: poche alla volta, distanziate,
+// e ripetute con attesa crescente se Yahoo risponde "Too Many Requests".
+// ---------------------------------------------------------------------------
+
+const MAX_CONCURRENT = 2;
+const MIN_INTERVAL_MS = 250;
+const RETRY_DELAYS_MS = [1500, 3000];
+
+let active = 0;
+let nextStart = 0;
+const waiting: (() => void)[] = [];
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function acquire() {
+  if (active < MAX_CONCURRENT) active++;
+  // Il posto viene ceduto direttamente da release(), senza ricontare
+  else await new Promise<void>(resolve => waiting.push(resolve));
+  const start = Math.max(Date.now(), nextStart);
+  nextStart = start + MIN_INTERVAL_MS;
+  if (start > Date.now()) await sleep(start - Date.now());
+}
+
+function release() {
+  const next = waiting.shift();
+  if (next) next();
+  else active--;
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+}
+
+const isRateLimited = (error: unknown) => /\b429\b|too many requests/i.test(describeError(error));
+
+async function withYahoo<T>(request: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    await acquire();
+    try {
+      return await request();
+    } catch (error) {
+      if (!isRateLimited(error) || attempt >= RETRY_DELAYS_MS.length) throw error;
+    } finally {
+      release();
+    }
+    await sleep(RETRY_DELAYS_MS[attempt]);
+  }
+}
+
 const QUOTE_TTL = 60 * 1000;
 const HISTORY_TTL = 6 * 60 * 60 * 1000;
 const MAX_SYMBOLS = 100;
@@ -72,7 +122,7 @@ export async function searchSecurities(query: string): Promise<SearchResult[]> {
     const hit = cache.get(key);
     const results = (hit && hit.expires > Date.now()
       ? hit.value
-      : await yahooFinance.search(q, { newsCount: 0, quotesCount: 12 }, LENIENT)) as { quotes?: unknown[] };
+      : await withYahoo(() => yahooFinance.search(q, { newsCount: 0, quotesCount: 12 }, LENIENT))) as { quotes?: unknown[] };
     const found = (results?.quotes ?? []).flatMap((item: unknown): SearchResult[] => {
       const quote = item as Record<string, unknown>;
       if (quote.isYahooFinance === false || typeof quote.symbol !== 'string') return [];
@@ -132,10 +182,6 @@ function toDate(value: unknown): Date | null {
 
 const toIsoTime = (value: unknown) => toDate(value)?.toISOString();
 
-function describeError(error: unknown): string {
-  return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-}
-
 const DAY_MS = 24 * 60 * 60 * 1000;
 const utcDay = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -156,10 +202,8 @@ type ChartMeta = {
  * non richiede il crumb di sessione, che dai server cloud spesso non si ottiene.
  */
 async function fetchChartQuote(symbol: string): Promise<Quote | null> {
-  const result = await yahooFinance.chart(
-    symbol,
-    { period1: new Date(Date.now() - 8 * DAY_MS), interval: '1d', return: 'array' },
-    LENIENT,
+  const result = await withYahoo(() =>
+    yahooFinance.chart(symbol, { period1: new Date(Date.now() - 8 * DAY_MS), interval: '1d', return: 'array' }, LENIENT),
   );
   const meta: ChartMeta = result?.meta ?? {};
   const { currency, factor } = normalizeCurrency(meta.currency);
@@ -202,19 +246,28 @@ export async function getQuotes(tickers: string[]): Promise<Record<string, Quote
   const symbols = cleanSymbols(tickers);
   if (symbols.length === 0) return {};
 
-  const quotes = await mapLimit(symbols, 4, async symbol => {
+  let failed = 0;
+  let rateLimited = 0;
+  // Il limitatore globale regola la frequenza: qui basta non accodare tutto subito
+  const quotes = await mapLimit(symbols, MAX_CONCURRENT, async symbol => {
     const key = `quote:${symbol}`;
     const hit = cache.get(key);
     if (hit && hit.expires > Date.now()) return hit.value as Quote;
     try {
       const quote = await fetchChartQuote(symbol);
       if (quote) cache.set(key, { expires: Date.now() + QUOTE_TTL, value: quote });
+      else failed++;
       return quote;
     } catch (error) {
+      failed++;
+      if (isRateLimited(error)) rateLimited++;
       console.warn(`Quotazione non disponibile per ${symbol}:`, describeError(error));
       return null;
     }
   });
+  if (failed) {
+    console.warn(`Quotazioni: ${symbols.length - failed} ok, ${failed} non disponibili (${rateLimited} per limite di frequenza di Yahoo)`);
+  }
 
   const result: Record<string, Quote> = {};
   symbols.forEach((symbol, i) => {
@@ -348,7 +401,7 @@ export async function getExchangeRates(currencies: string[], to = 'EUR'): Promis
 
 async function fetchHistory(symbol: string, start: string): Promise<PricePoint[]> {
   return cached(`history:${symbol}:${start}`, HISTORY_TTL, async () => {
-    const result = await yahooFinance.chart(symbol, { period1: start, interval: '1d', return: 'array' }, LENIENT);
+    const result = await withYahoo(() => yahooFinance.chart(symbol, { period1: start, interval: '1d', return: 'array' }, LENIENT));
     const { factor } = normalizeCurrency(result?.meta?.currency);
     const quotes: { date?: unknown; close?: number | null }[] = result?.quotes ?? [];
     return quotes.flatMap(q => {
@@ -363,16 +416,14 @@ async function fetchHistory(symbol: string, start: string): Promise<PricePoint[]
 export async function getPriceHistory(tickers: string[], start: string): Promise<Record<string, PricePoint[]>> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return {};
   const symbols = cleanSymbols(tickers);
-  const entries = await Promise.all(
-    symbols.map(async symbol => {
-      try {
-        return [symbol, await fetchHistory(symbol, start)] as const;
-      } catch (error) {
-        console.warn(`Storico non disponibile per ${symbol}:`, error);
-        return [symbol, []] as const;
-      }
-    }),
-  );
+  const entries = await mapLimit(symbols, MAX_CONCURRENT, async symbol => {
+    try {
+      return [symbol, await fetchHistory(symbol, start)] as const;
+    } catch (error) {
+      console.warn(`Storico non disponibile per ${symbol}:`, describeError(error));
+      return [symbol, [] as PricePoint[]] as const;
+    }
+  });
   return Object.fromEntries(entries);
 }
 

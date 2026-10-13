@@ -10,6 +10,10 @@ export const metadata: Metadata = {
   description: 'Conti, depositi e investimenti in un unico posto: monitora il tuo patrimonio e come cresce nel tempo.',
 };
 
+// Le quotazioni vengono chieste a Yahoo poche alla volta: lasciamo alle server action
+// il tempo di completare anche portafogli con molti titoli (60 s è il massimo sul piano Hobby di Vercel)
+export const maxDuration = 60;
+
 export const viewport: Viewport = {
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#f6f7f9' },
