@@ -5,7 +5,7 @@ import type { Asset, BalanceSnapshot, NewAsset, Transaction } from '@/types';
 import { isMarketAsset } from '@/lib/asset-types';
 import { buildHoldings, computePosition, summarize, upsertBalance, type FxRates } from '@/lib/portfolio';
 import { addAsset, deleteAsset, getAssets, newId, saveAsset, savePrices } from '@/services/asset.service';
-import { getExchangeRates, getQuotes } from '@/services/finance.service';
+import { getExchangeRates, getQuotes } from '@/lib/market';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 

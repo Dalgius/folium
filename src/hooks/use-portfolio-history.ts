@@ -5,7 +5,7 @@ import { format, parseISO, startOfYear, subDays, subMonths, subYears } from 'dat
 import type { Asset } from '@/types';
 import { isMarketAsset } from '@/lib/asset-types';
 import { buildHistory, dayKey, todayKey, type FxRates, type PricePoint } from '@/lib/portfolio';
-import { getFxHistory, getPriceHistory } from '@/services/finance.service';
+import { getFxHistory, getPriceHistory } from '@/lib/market';
 
 export type Period = '1M' | '3M' | '6M' | 'YTD' | '1A' | '5A' | 'MAX';
 
