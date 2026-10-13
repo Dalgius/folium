@@ -86,7 +86,14 @@ export async function searchSecurities(query: string): Promise<SearchResult[]> {
     });
     // Non memorizziamo i risultati vuoti, spesso dovuti a errori temporanei
     if (found.length) cache.set(key, { expires: Date.now() + QUOTE_TTL, value: results });
-    return found;
+    // Cercando un ticker senza suffisso ("ISP") la quotazione di Borsa Italiana va in cima;
+    // se la ricerca di Yahoo non la propone, la verifichiamo direttamente
+    const milan = `${q.toUpperCase()}.MI`;
+    if (/^[A-Z0-9]{1,5}$/i.test(q) && !found.some(r => r.ticker.toUpperCase() === milan)) {
+      const quote = (await getQuotes([milan]))[milan];
+      if (quote) found.unshift({ ticker: milan, name: quote.name, exchange: 'Milano', type: quote.quoteType ?? 'EQUITY' });
+    }
+    return [...found].sort((a, b) => Number(b.ticker.toUpperCase() === milan) - Number(a.ticker.toUpperCase() === milan));
   } catch (error) {
     console.error('Errore nella ricerca titoli:', error);
     return [];
@@ -112,19 +119,6 @@ export interface Quote {
   quoteType?: string;
 }
 
-type RawQuote = {
-  symbol: string;
-  regularMarketPrice?: number;
-  regularMarketPreviousClose?: number;
-  regularMarketChange?: number;
-  regularMarketChangePercent?: number;
-  regularMarketTime?: Date | number;
-  currency?: string;
-  longName?: string;
-  shortName?: string;
-  quoteType?: string;
-};
-
 /** Data da Date o timestamp Unix (secondi o millisecondi). */
 function toDate(value: unknown): Date | null {
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
@@ -138,78 +132,96 @@ function toDate(value: unknown): Date | null {
 
 const toIsoTime = (value: unknown) => toDate(value)?.toISOString();
 
-function toQuote(raw: RawQuote): Quote | null {
-  const { currency, factor } = normalizeCurrency(raw.currency);
-  if (!raw.regularMarketPrice || raw.regularMarketPrice <= 0 || !currency) return null;
-  const price = raw.regularMarketPrice * factor;
-
-  let dailyChange: number | undefined;
-  let dailyChangePercent: number | undefined;
-  if (raw.regularMarketPreviousClose && raw.regularMarketPreviousClose > 0) {
-    const previous = raw.regularMarketPreviousClose * factor;
-    dailyChange = price - previous;
-    dailyChangePercent = dailyChange / previous;
-  } else if (raw.regularMarketChange !== undefined && raw.regularMarketChangePercent !== undefined) {
-    dailyChange = raw.regularMarketChange * factor;
-    // Yahoo restituisce la percentuale già moltiplicata per 100
-    dailyChangePercent = raw.regularMarketChangePercent / 100;
-  }
-
-  return {
-    ticker: raw.symbol,
-    price,
-    currency,
-    name: raw.longName || raw.shortName || raw.symbol,
-    dailyChange,
-    dailyChangePercent,
-    marketTime: toIsoTime(raw.regularMarketTime),
-    quoteType: raw.quoteType,
-  };
-}
-
-async function fetchQuotes(symbols: string[]): Promise<RawQuote[]> {
-  try {
-    const result = await yahooFinance.quote(symbols, { return: 'array' }, LENIENT);
-    return (Array.isArray(result) ? result : []) as RawQuote[];
-  } catch (error) {
-    // Un singolo simbolo non valido può far fallire l'intera richiesta: riprova uno
-    // per uno, pochi alla volta per non incorrere nei limiti di Yahoo
-    console.warn('Richiesta multipla fallita, riprovo singolarmente:', describeError(error));
-    const single = await mapLimit(symbols, 3, s =>
-      yahooFinance.quote(s, {}, LENIENT).then(r => (r ?? null) as RawQuote | null).catch(error => {
-        console.warn(`Quotazione non disponibile per ${s}:`, describeError(error));
-        return null;
-      }),
-    );
-    return single.filter((q): q is RawQuote => !!q && typeof q.symbol === 'string');
-  }
-}
-
 function describeError(error: unknown): string {
   return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
 }
 
-/** Quotazioni correnti per più ticker in un'unica richiesta. */
+const DAY_MS = 24 * 60 * 60 * 1000;
+const utcDay = (d: Date) => d.toISOString().slice(0, 10);
+
+type ChartMeta = {
+  symbol?: string;
+  currency?: string;
+  regularMarketPrice?: number;
+  regularMarketTime?: unknown;
+  previousClose?: number;
+  chartPreviousClose?: number;
+  longName?: string;
+  shortName?: string;
+  instrumentType?: string;
+};
+
+/**
+ * Quotazione ricavata dall'endpoint "chart" di Yahoo. A differenza di "quote"
+ * non richiede il crumb di sessione, che dai server cloud spesso non si ottiene.
+ */
+async function fetchChartQuote(symbol: string): Promise<Quote | null> {
+  const result = await yahooFinance.chart(
+    symbol,
+    { period1: new Date(Date.now() - 8 * DAY_MS), interval: '1d', return: 'array' },
+    LENIENT,
+  );
+  const meta: ChartMeta = result?.meta ?? {};
+  const { currency, factor } = normalizeCurrency(meta.currency);
+  if (!meta.regularMarketPrice || meta.regularMarketPrice <= 0 || !currency) return null;
+  const price = meta.regularMarketPrice * factor;
+  const marketTime = toDate(meta.regularMarketTime) ?? new Date();
+
+  // Chiusura precedente: l'ultima barra giornaliera prima del giorno dell'ultimo prezzo
+  const marketDay = utcDay(marketTime);
+  const bars: { date?: unknown; close?: number | null }[] = result?.quotes ?? [];
+  let previous: number | undefined;
+  for (const bar of bars) {
+    const date = toDate(bar.date);
+    if (date && utcDay(date) < marketDay && bar.close != null && bar.close > 0) previous = bar.close;
+  }
+  previous ??= meta.previousClose ?? meta.chartPreviousClose;
+
+  let dailyChange: number | undefined;
+  let dailyChangePercent: number | undefined;
+  if (previous && previous > 0) {
+    const prev = previous * factor;
+    dailyChange = price - prev;
+    dailyChangePercent = dailyChange / prev;
+  }
+
+  return {
+    ticker: (meta.symbol ?? symbol).toUpperCase(),
+    price,
+    currency,
+    name: meta.longName || meta.shortName || symbol,
+    dailyChange,
+    dailyChangePercent,
+    marketTime: marketTime.toISOString(),
+    quoteType: meta.instrumentType,
+  };
+}
+
+/** Quotazioni correnti per più ticker (una richiesta per simbolo, poche alla volta). */
 export async function getQuotes(tickers: string[]): Promise<Record<string, Quote>> {
   const symbols = cleanSymbols(tickers);
   if (symbols.length === 0) return {};
-  const key = `quotes:${[...symbols].sort().join(',')}`;
-  const hit = cache.get(key);
-  if (hit && hit.expires > Date.now()) return hit.value as Record<string, Quote>;
-  try {
-    const raw = await fetchQuotes(symbols);
-    const result: Record<string, Quote> = {};
-    for (const r of raw) {
-      const quote = toQuote(r);
-      if (quote) result[r.symbol.toUpperCase()] = quote;
+
+  const quotes = await mapLimit(symbols, 4, async symbol => {
+    const key = `quote:${symbol}`;
+    const hit = cache.get(key);
+    if (hit && hit.expires > Date.now()) return hit.value as Quote;
+    try {
+      const quote = await fetchChartQuote(symbol);
+      if (quote) cache.set(key, { expires: Date.now() + QUOTE_TTL, value: quote });
+      return quote;
+    } catch (error) {
+      console.warn(`Quotazione non disponibile per ${symbol}:`, describeError(error));
+      return null;
     }
-    // Un risultato vuoto di solito indica un errore temporaneo: non lo memorizziamo
-    if (Object.keys(result).length) cache.set(key, { expires: Date.now() + QUOTE_TTL, value: result });
-    return result;
-  } catch (error) {
-    console.error('Errore nel recupero delle quotazioni:', error);
-    return {};
-  }
+  });
+
+  const result: Record<string, Quote> = {};
+  symbols.forEach((symbol, i) => {
+    const quote = quotes[i];
+    if (quote) result[symbol] = quote;
+  });
+  return result;
 }
 
 export async function getQuote(ticker: string): Promise<Quote | null> {
