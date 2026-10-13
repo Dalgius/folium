@@ -26,7 +26,7 @@ function chunks<T>(items: T[], size: number): T[][] {
 
 async function getJson<T>(url: string): Promise<T | null> {
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { cache: 'no-store' });
     if (!response.ok) return null;
     return (await response.json()) as T;
   } catch (error) {
@@ -35,12 +35,19 @@ async function getJson<T>(url: string): Promise<T | null> {
   }
 }
 
+interface FetchOptions {
+  /** Salta la cache della CDN (aggiornamento richiesto dall'utente) */
+  fresh?: boolean;
+}
+
 /** Quotazioni correnti, indicizzate per simbolo maiuscolo. */
-export async function getQuotes(tickers: string[]): Promise<Record<string, Quote>> {
+export async function getQuotes(tickers: string[], { fresh = false }: FetchOptions = {}): Promise<Record<string, Quote>> {
   const symbols = unique(tickers);
+  // Un parametro diverso a ogni richiesta fa saltare la cache della CDN
+  const bust = fresh ? `&t=${Date.now()}` : '';
   const parts = await Promise.all(
     chunks(symbols, CHUNK).map(group =>
-      getJson<{ quotes?: Record<string, Quote> }>(`/api/quotes?symbols=${encodeURIComponent(group.join(','))}`),
+      getJson<{ quotes?: Record<string, Quote> }>(`/api/quotes?symbols=${encodeURIComponent(group.join(','))}${bust}`),
     ),
   );
   return Object.assign({}, ...parts.map(p => p?.quotes ?? {}));
@@ -54,11 +61,11 @@ export async function getQuote(ticker: string): Promise<Quote | null> {
 const fxSymbol = (from: string, to: string) => `${from}${to}=X`;
 
 /** Tassi di cambio correnti verso `to` (default EUR). */
-export async function getExchangeRates(currencies: string[], to = 'EUR'): Promise<Record<string, number>> {
+export async function getExchangeRates(currencies: string[], to = 'EUR', options: FetchOptions = {}): Promise<Record<string, number>> {
   const needed = unique(currencies).filter(c => c !== to && /^[A-Z]{3}$/.test(c));
   const rates: Record<string, number> = { [to]: 1 };
   if (needed.length === 0) return rates;
-  const quotes = await getQuotes(needed.map(c => fxSymbol(c, to)));
+  const quotes = await getQuotes(needed.map(c => fxSymbol(c, to)), options);
   for (const c of needed) {
     const q = quotes[fxSymbol(c, to)];
     if (q?.price) rates[c] = q.price;

@@ -37,9 +37,11 @@ export function usePortfolio() {
       setRefreshing(true);
       try {
         const tickers = list.filter(a => isMarketAsset(a.type) && a.ticker).map(a => a.ticker!.toUpperCase());
+        // Con l'aggiornamento manuale si saltano le risposte in cache (60 s) per avere prezzi freschi
+        const fresh = !silent;
         const [quotesResult, ratesResult] = await Promise.all([
-          getQuotes(tickers),
-          getExchangeRates(list.map(a => a.currency)),
+          getQuotes(tickers, { fresh }),
+          getExchangeRates(list.map(a => a.currency), 'EUR', { fresh }),
         ]);
         // Se la funzione sul server va in errore o in timeout il risultato può mancare:
         // si tengono i prezzi e i cambi già noti
@@ -77,8 +79,12 @@ export function usePortfolio() {
         setLastRefresh(new Date());
 
         const missing = tickers.filter(t => !quotes[t]);
-        if (!silent && missing.length) {
+        if (!silent && missing.length === tickers.length && tickers.length > 0) {
+          toast({ title: 'Quotazioni non disponibili', description: 'Yahoo Finance non ha risposto: restano gli ultimi prezzi noti.', variant: 'destructive' });
+        } else if (!silent && missing.length) {
           toast({ title: 'Quotazioni parziali', description: `Nessun prezzo per: ${missing.join(', ')}` });
+        } else if (!silent) {
+          toast({ title: 'Quotazioni aggiornate', description: `${tickers.length} titoli aggiornati alle ${new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}` });
         }
         savePrices(updates).catch(error => console.warn('Salvataggio prezzi non riuscito', error));
       } catch (error) {
