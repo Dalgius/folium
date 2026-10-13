@@ -1,12 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import Image from 'next/image';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth';
+import { sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth';
 import { AlertCircle, CheckCircle2, Landmark, LineChart, Loader2, PiggyBank } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { FoliumLogo } from '@/components/folium-logo';
@@ -17,8 +16,6 @@ import { TextField } from '@/components/forms/fields';
 import { Input } from '@/components/ui/input';
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
-type Mode = 'login' | 'signup';
-
 const schema = z.object({
   email: z.string().trim().email('Inserisci un indirizzo email valido'),
   password: z.string().min(6, 'La password deve contenere almeno 6 caratteri'),
@@ -28,15 +25,9 @@ const ERRORS: Record<string, string> = {
   'auth/invalid-credential': 'Credenziali non valide. Controlla email e password.',
   'auth/user-not-found': 'Credenziali non valide. Controlla email e password.',
   'auth/wrong-password': 'Credenziali non valide. Controlla email e password.',
-  'auth/email-already-in-use': 'Esiste già un account con questa email.',
+  'auth/user-disabled': 'Questo account è stato disattivato.',
   'auth/too-many-requests': 'Troppi tentativi. Riprova tra qualche minuto.',
   'auth/network-request-failed': 'Connessione assente. Controlla la rete e riprova.',
-  'auth/weak-password': 'La password è troppo debole.',
-};
-
-const COPY: Record<Mode, { title: string; subtitle: string; cta: string; busy: string }> = {
-  login: { title: 'Bentornato', subtitle: 'Accedi per vedere il tuo patrimonio.', cta: 'Accedi', busy: 'Accesso in corso…' },
-  signup: { title: 'Crea il tuo account', subtitle: 'Inizia a monitorare conti e investimenti.', cta: 'Registrati', busy: 'Creazione in corso…' },
 };
 
 const FEATURES = [
@@ -45,10 +36,9 @@ const FEATURES = [
   { icon: PiggyBank, text: 'Il patrimonio netto e come cresce nel tempo' },
 ];
 
-export function AuthForm({ mode }: { mode: Mode }) {
+export function AuthForm() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const copy = COPY[mode];
 
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
@@ -59,8 +49,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
     setError(null);
     setNotice(null);
     try {
-      if (mode === 'login') await signInWithEmailAndPassword(auth, email, password);
-      else await createUserWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, email, password);
       // Il reindirizzamento è gestito da AuthProvider
     } catch (e) {
       const code = (e as { code?: string }).code ?? '';
@@ -114,8 +103,8 @@ export function AuthForm({ mode }: { mode: Mode }) {
             <FoliumLogo className="h-7 w-auto text-primary" aria-label="Folium" />
           </div>
           <div className="space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight">{copy.title}</h1>
-            <p className="text-sm text-muted-foreground">{copy.subtitle}</p>
+            <h1 className="text-2xl font-semibold tracking-tight">Bentornato</h1>
+            <p className="text-sm text-muted-foreground">Accedi per vedere il tuo patrimonio.</p>
           </div>
 
           {error && (
@@ -141,14 +130,12 @@ export function AuthForm({ mode }: { mode: Mode }) {
                   <FormItem>
                     <div className="flex items-center justify-between">
                       <FormLabel>Password</FormLabel>
-                      {mode === 'login' && (
-                        <button type="button" onClick={resetPassword} className="text-xs font-medium text-primary hover:underline">
-                          Password dimenticata?
-                        </button>
-                      )}
+                      <button type="button" onClick={resetPassword} className="text-xs font-medium text-primary hover:underline">
+                        Password dimenticata?
+                      </button>
                     </div>
                     <FormControl>
-                      <Input type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder="••••••••" {...field} />
+                      <Input type="password" autoComplete="current-password" placeholder="••••••••" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -156,17 +143,11 @@ export function AuthForm({ mode }: { mode: Mode }) {
               />
               <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
                 {form.formState.isSubmitting && <Loader2 className="animate-spin" />}
-                {form.formState.isSubmitting ? copy.busy : copy.cta}
+                {form.formState.isSubmitting ? 'Accesso in corso…' : 'Accedi'}
               </Button>
             </form>
           </Form>
 
-          <p className="text-center text-sm text-muted-foreground">
-            {mode === 'login' ? 'Non hai un account? ' : 'Hai già un account? '}
-            <Link href={mode === 'login' ? '/signup' : '/login'} className="font-medium text-primary hover:underline">
-              {mode === 'login' ? 'Registrati' : 'Accedi'}
-            </Link>
-          </p>
         </div>
       </main>
     </div>
