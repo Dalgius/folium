@@ -59,7 +59,13 @@ export function AppHeader({ refreshing, lastRefresh, onRefresh, onAdd, canRefres
                   <RefreshCw className={cn(refreshing && 'animate-spin')} />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Aggiorna quotazioni</TooltipContent>
+              <TooltipContent>
+                {refreshing
+                  ? 'Aggiornamento in corso…'
+                  : lastRefresh
+                    ? `Aggiorna quotazioni (ultimo aggiornamento alle ${format(lastRefresh, 'HH:mm', { locale: it })})`
+                    : 'Aggiorna quotazioni'}
+              </TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
