@@ -8,7 +8,7 @@ import { Info, Loader2, Search, X } from 'lucide-react';
 import type { Asset, NewAsset } from '@/types';
 import { assetTypeFromQuoteType, typeMeta } from '@/lib/asset-types';
 import { notInFuture, optionalNumber, optionalNumberValue, parseDecimal, requiredDate, requiredNumber, toInput, todayInput } from '@/lib/forms';
-import { getQuote, searchSecurities, type Quote, type SearchResult } from '@/services/finance.service';
+import { getQuote, searchWithMilan, type Quote, type SearchResult } from '@/lib/market';
 import { newId } from '@/services/asset.service';
 import { Form } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -57,7 +57,7 @@ export function SecurityForm({ assets, onSubmit, onBack }: { assets: Asset[]; on
     let cancelled = false;
     setSearching(true);
     const timer = setTimeout(async () => {
-      const found = await searchSecurities(q);
+      const found = await searchWithMilan(q);
       if (!cancelled) {
         setResults(found);
         setSearching(false);
