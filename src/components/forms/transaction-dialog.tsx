@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import type { Asset, Transaction, TransactionType } from '@/types';
-import { computePosition, lastPrice } from '@/lib/portfolio';
+import { computePosition, dayKey, lastPrice } from '@/lib/portfolio';
 import { notInFuture, optionalNumber, optionalNumberValue, parseDecimal, requiredDate, requiredNumber, toInput, todayInput } from '@/lib/forms';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Form } from '@/components/ui/form';
@@ -26,14 +26,19 @@ type Values = z.infer<typeof baseSchema>;
 
 interface TransactionDialogProps {
   asset: Asset | null;
+  /** Operazione da modificare; se assente si registra una nuova operazione */
+  transaction?: Transaction | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (assetId: string, tx: Omit<Transaction, 'id'>) => Promise<boolean>;
+  onSubmit: (assetId: string, tx: Omit<Transaction, 'id'>, txId?: string) => Promise<boolean>;
 }
 
-export function TransactionDialog({ asset, open, onOpenChange, onSubmit }: TransactionDialogProps) {
+export function TransactionDialog({ asset, transaction, open, onOpenChange, onSubmit }: TransactionDialogProps) {
   const [type, setType] = useState<TransactionType>('buy');
-  const held = asset ? computePosition(asset.transactions).quantity : 0;
+  const isEdit = !!transaction;
+  // In modifica la quantità disponibile non conta l'operazione stessa
+  const others = (asset?.transactions ?? []).filter(t => t.id !== transaction?.id);
+  const held = asset ? computePosition(others).quantity : 0;
 
   const schema = baseSchema.superRefine((v, ctx) => {
     if (type === 'sell' && parseDecimal(v.quantity) > held + 1e-9) {
@@ -44,11 +49,20 @@ export function TransactionDialog({ asset, open, onOpenChange, onSubmit }: Trans
   const form = useForm<Values>({ resolver: zodResolver(schema) });
 
   useEffect(() => {
-    if (open && asset) {
+    if (!open || !asset) return;
+    if (transaction) {
+      setType(transaction.type);
+      form.reset({
+        date: dayKey(transaction.date) ?? todayInput(),
+        quantity: toInput(transaction.quantity),
+        price: toInput(transaction.price, 6),
+        fees: toInput(transaction.fees),
+      });
+    } else {
       setType('buy');
       form.reset({ date: todayInput(), quantity: '', price: toInput(lastPrice(asset), 4), fees: '' });
     }
-  }, [open, asset, form]);
+  }, [open, asset, transaction, form]);
 
   if (!asset) return null;
   const [quantity, price, fees] = form.watch(['quantity', 'price', 'fees']);
@@ -62,7 +76,7 @@ export function TransactionDialog({ asset, open, onOpenChange, onSubmit }: Trans
       quantity: parseDecimal(v.quantity),
       price: parseDecimal(v.price),
       fees: optionalNumberValue(v.fees),
-    });
+    }, transaction?.id);
     if (ok) onOpenChange(false);
   }
 
@@ -70,8 +84,10 @@ export function TransactionDialog({ asset, open, onOpenChange, onSubmit }: Trans
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Registra operazione</DialogTitle>
-          <DialogDescription>{asset.name} · in portafoglio {formatNumber(held)}</DialogDescription>
+          <DialogTitle>{isEdit ? 'Modifica operazione' : 'Registra operazione'}</DialogTitle>
+          <DialogDescription>
+            {asset.name} · in portafoglio {formatNumber(computePosition(asset.transactions).quantity)}
+          </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(submit)} className="space-y-4">
@@ -83,7 +99,7 @@ export function TransactionDialog({ asset, open, onOpenChange, onSubmit }: Trans
               className="w-full [&>button]:flex-1"
             />
             <div className="grid grid-cols-2 gap-3">
-              <TextField control={form.control} name="quantity" label="Quantità" inputMode="decimal" autoFocus />
+              <TextField control={form.control} name="quantity" label="Quantità" inputMode="decimal" autoFocus={!isEdit} />
               <TextField control={form.control} name="price" label="Prezzo unitario" inputMode="decimal" suffix={asset.currency} />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -96,7 +112,7 @@ export function TransactionDialog({ asset, open, onOpenChange, onSubmit }: Trans
             </div>
             <DialogFooter>
               <Button type="submit" disabled={form.formState.isSubmitting}>
-                {type === 'buy' ? 'Registra acquisto' : 'Registra vendita'}
+                {isEdit ? 'Salva modifiche' : type === 'buy' ? 'Registra acquisto' : 'Registra vendita'}
               </Button>
             </DialogFooter>
           </form>
