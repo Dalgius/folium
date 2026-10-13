@@ -75,13 +75,45 @@ function describeError(error: unknown): string {
 
 const isRateLimited = (error: unknown) => /\b429\b|too many requests/i.test(describeError(error));
 
-async function withYahoo<T>(request: () => Promise<T>): Promise<T> {
+/**
+ * Interruttore: se Yahoo rifiuta più richieste di fila per limite di frequenza
+ * (tipico quando blocca l'IP del server) smettiamo di interrogarlo per un po',
+ * invece di accumulare attese fino al timeout della funzione.
+ */
+const BREAKER_THRESHOLD = 4;
+const BREAKER_PAUSE_MS = 2 * 60 * 1000;
+let consecutiveRateLimits = 0;
+let pausedUntil = 0;
+
+class YahooRateLimitError extends Error {
+  constructor(message = 'Too Many Requests (Yahoo in pausa dopo ripetuti rifiuti)') {
+    super(message);
+    this.name = 'YahooRateLimitError';
+  }
+}
+
+/** Budget di tempo per una server action, sotto il limite di Vercel (maxDuration 60 s) */
+const ACTION_BUDGET_MS = 40 * 1000;
+const deadlineFromNow = () => Date.now() + ACTION_BUDGET_MS;
+
+async function withYahoo<T>(request: () => Promise<T>, deadline = Infinity): Promise<T> {
   for (let attempt = 0; ; attempt++) {
+    if (Date.now() < pausedUntil) throw new YahooRateLimitError();
+    if (Date.now() > deadline) throw new YahooRateLimitError('Tempo esaurito per le richieste a Yahoo');
     await acquire();
     try {
-      return await request();
+      const result = await request();
+      consecutiveRateLimits = 0;
+      return result;
     } catch (error) {
-      if (!isRateLimited(error) || attempt >= RETRY_DELAYS_MS.length) throw error;
+      if (!isRateLimited(error)) throw error;
+      if (++consecutiveRateLimits >= BREAKER_THRESHOLD) {
+        pausedUntil = Date.now() + BREAKER_PAUSE_MS;
+        console.warn(`Yahoo rifiuta le richieste (${consecutiveRateLimits} di fila): pausa di ${BREAKER_PAUSE_MS / 1000} s`);
+        throw error;
+      }
+      const delay = RETRY_DELAYS_MS[attempt];
+      if (delay === undefined || Date.now() + delay > deadline) throw error;
       // Il prossimo tentativo esce dall'altro host di Yahoo
       switchYahooHost();
     } finally {
@@ -216,9 +248,10 @@ type ChartMeta = {
  * Quotazione ricavata dall'endpoint "chart" di Yahoo. A differenza di "quote"
  * non richiede il crumb di sessione, che dai server cloud spesso non si ottiene.
  */
-async function fetchChartQuote(symbol: string): Promise<Quote | null> {
-  const result = await withYahoo(() =>
-    yahooFinance.chart(symbol, { period1: new Date(Date.now() - 8 * DAY_MS), interval: '1d', return: 'array' }, LENIENT),
+async function fetchChartQuote(symbol: string, deadline = Infinity): Promise<Quote | null> {
+  const result = await withYahoo(
+    () => yahooFinance.chart(symbol, { period1: new Date(Date.now() - 8 * DAY_MS), interval: '1d', return: 'array' }, LENIENT),
+    deadline,
   );
   const meta: ChartMeta = result?.meta ?? {};
   const { currency, factor } = normalizeCurrency(meta.currency);
@@ -263,20 +296,22 @@ export async function getQuotes(tickers: string[]): Promise<Record<string, Quote
 
   let failed = 0;
   let rateLimited = 0;
+  const deadline = deadlineFromNow();
   // Il limitatore globale regola la frequenza: qui basta non accodare tutto subito
   const quotes = await mapLimit(symbols, MAX_CONCURRENT, async symbol => {
     const key = `quote:${symbol}`;
     const hit = cache.get(key);
     if (hit && hit.expires > Date.now()) return hit.value as Quote;
     try {
-      const quote = await fetchChartQuote(symbol);
+      const quote = await fetchChartQuote(symbol, deadline);
       if (quote) cache.set(key, { expires: Date.now() + QUOTE_TTL, value: quote });
       else failed++;
       return quote;
     } catch (error) {
       failed++;
       if (isRateLimited(error)) rateLimited++;
-      console.warn(`Quotazione non disponibile per ${symbol}:`, describeError(error));
+      // Con Yahoo in pausa non serve una riga per ogni titolo
+      if (!(error instanceof YahooRateLimitError)) console.warn(`Quotazione non disponibile per ${symbol}:`, describeError(error));
       return null;
     }
   });
@@ -417,9 +452,9 @@ export async function getExchangeRates(currencies: string[], to = 'EUR'): Promis
 // Storico prezzi
 // ---------------------------------------------------------------------------
 
-async function fetchHistory(symbol: string, start: string): Promise<PricePoint[]> {
+async function fetchHistory(symbol: string, start: string, deadline = Infinity): Promise<PricePoint[]> {
   return cached(`history:${symbol}:${start}`, HISTORY_TTL, async () => {
-    const result = await withYahoo(() => yahooFinance.chart(symbol, { period1: start, interval: '1d', return: 'array' }, LENIENT));
+    const result = await withYahoo(() => yahooFinance.chart(symbol, { period1: start, interval: '1d', return: 'array' }, LENIENT), deadline);
     const { factor } = normalizeCurrency(result?.meta?.currency);
     const quotes: { date?: unknown; close?: number | null }[] = result?.quotes ?? [];
     return quotes.flatMap(q => {
@@ -434,11 +469,12 @@ async function fetchHistory(symbol: string, start: string): Promise<PricePoint[]
 export async function getPriceHistory(tickers: string[], start: string): Promise<Record<string, PricePoint[]>> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return {};
   const symbols = cleanSymbols(tickers);
+  const deadline = deadlineFromNow();
   const entries = await mapLimit(symbols, MAX_CONCURRENT, async symbol => {
     try {
-      return [symbol, await fetchHistory(symbol, start)] as const;
+      return [symbol, await fetchHistory(symbol, start, deadline)] as const;
     } catch (error) {
-      console.warn(`Storico non disponibile per ${symbol}:`, describeError(error));
+      if (!(error instanceof YahooRateLimitError)) console.warn(`Storico non disponibile per ${symbol}:`, describeError(error));
       return [symbol, [] as PricePoint[]] as const;
     }
   });

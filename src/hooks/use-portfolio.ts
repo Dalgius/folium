@@ -37,11 +37,16 @@ export function usePortfolio() {
       setRefreshing(true);
       try {
         const tickers = list.filter(a => isMarketAsset(a.type) && a.ticker).map(a => a.ticker!.toUpperCase());
-        const [quotes, rates] = await Promise.all([
+        const [quotesResult, ratesResult] = await Promise.all([
           getQuotes(tickers),
           getExchangeRates(list.map(a => a.currency)),
         ]);
-        setFx(rates);
+        // Se la funzione sul server va in errore o in timeout il risultato può mancare:
+        // si tengono i prezzi e i cambi già noti
+        const quotes = quotesResult ?? {};
+        if (ratesResult && typeof ratesResult === 'object') {
+          setFx(current => ({ ...current, ...ratesResult, EUR: 1 }));
+        }
 
         const updates: Parameters<typeof savePrices>[0] = [];
         const prices = new Map<string, Partial<Asset>>();
