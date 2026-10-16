@@ -8,7 +8,7 @@ import { LineChart } from 'lucide-react';
 import type { Asset } from '@/types';
 import type { FxRates, HistoryPoint } from '@/lib/portfolio';
 import { periodReturn } from '@/lib/portfolio';
-import { PERIODS, usePortfolioHistory, type Period } from '@/hooks/use-portfolio-history';
+import { PERIODS, isIntradayPeriod, usePortfolioHistory, type Period } from '@/hooks/use-portfolio-history';
 import { usePrivacy } from '@/hooks/use-privacy';
 import { Money } from '@/components/money';
 import { Trend } from '@/components/trend';
@@ -54,8 +54,25 @@ export function PerformanceChart({ assets, fx, hasInvestments }: PerformanceChar
     return { gain, pct: first.value > 0 ? gain / first.value : 0 };
   }, [data, endIndex, current, first, mode]);
 
+  const intraday = isIntradayPeriod(period);
   const spanDays = data.length > 1 ? differenceInCalendarDays(parseISO(data[data.length - 1].date), parseISO(data[0].date)) : 0;
-  const tickFormat = spanDays > 400 ? 'MMM yy' : spanDays > 60 ? 'MMM' : 'd MMM';
+  const tickFormat = period === '1G'
+    ? 'HH:mm'
+    : period === '1S'
+      ? 'EEE d'
+      : spanDays > 400 ? 'MMM yy' : spanDays > 60 ? 'MMM' : 'd MMM';
+  const pointFormat = intraday ? 'd MMM, HH:mm' : 'd MMM yyyy';
+  // Sulla settimana un'etichetta per giorno: il primo orario di ciascun giorno
+  const weekTicks = useMemo(() => {
+    if (period !== '1S') return undefined;
+    const seen = new Set<string>();
+    return data.filter(p => {
+      const day = format(parseISO(p.date), 'yyyy-MM-dd');
+      if (seen.has(day)) return false;
+      seen.add(day);
+      return true;
+    }).map(p => p.date);
+  }, [data, period]);
   const isEmpty = !loading && (data.length < 2 || data.every(d => d.value === 0));
 
   return (
@@ -77,10 +94,12 @@ export function PerformanceChart({ assets, fx, hasInvestments }: PerformanceChar
                   <Trend value={change.gain} pct={change.pct} />
                   <span className="text-muted-foreground">
                     {hoverIndex !== null && current
-                      ? `al ${format(parseISO(current.date), 'd MMM yyyy', { locale: it })}`
+                      ? `al ${format(parseISO(current.date), pointFormat, { locale: it })}`
                       : mode === 'investments'
                         ? 'rendimento nel periodo, al netto dei versamenti'
-                        : 'nel periodo'}
+                        : period === '1G'
+                          ? "nell'ultima seduta"
+                          : 'nel periodo'}
                   </span>
                 </div>
               </>
@@ -130,6 +149,7 @@ export function PerformanceChart({ assets, fx, hasInvestments }: PerformanceChar
                 tickLine={false}
                 axisLine={false}
                 minTickGap={48}
+                ticks={weekTicks}
                 tickMargin={8}
                 tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
                 tickFormatter={(d: string) => format(parseISO(d), tickFormat, { locale: it })}
@@ -146,7 +166,7 @@ export function PerformanceChart({ assets, fx, hasInvestments }: PerformanceChar
               />
               <Tooltip
                 cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1 }}
-                content={<ChartTooltip mode={mode} />}
+                content={<ChartTooltip mode={mode} intraday={intraday} />}
                 isAnimationActive={false}
               />
               <Area
@@ -179,12 +199,12 @@ export function PerformanceChart({ assets, fx, hasInvestments }: PerformanceChar
   );
 }
 
-function ChartTooltip({ active, payload, mode }: { active?: boolean; payload?: { payload: HistoryPoint & { value: number } }[]; mode: Mode }) {
+function ChartTooltip({ active, payload, mode, intraday }: { active?: boolean; payload?: { payload: HistoryPoint & { value: number } }[]; mode: Mode; intraday: boolean }) {
   if (!active || !payload?.length) return null;
   const p = payload[0].payload;
   return (
     <div className="min-w-[180px] rounded-lg border bg-popover px-3 py-2 text-sm shadow-md">
-      <p className="mb-1.5 text-xs text-muted-foreground">{format(parseISO(p.date), 'EEEE d MMMM yyyy', { locale: it })}</p>
+      <p className="mb-1.5 text-xs text-muted-foreground">{format(parseISO(p.date), intraday ? 'EEEE d MMMM, HH:mm' : 'EEEE d MMMM yyyy', { locale: it })}</p>
       {mode === 'netWorth' ? (
         <div className="space-y-1">
           <Row label="Patrimonio" value={<Money value={p.netWorth} className="font-semibold" />} />

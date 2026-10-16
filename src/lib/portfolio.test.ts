@@ -4,6 +4,7 @@ import {
   balanceAt,
   buildHistory,
   buildHoldings,
+  buildIntradayHistory,
   computePosition,
   depositInterest,
   periodReturn,
@@ -203,5 +204,53 @@ describe('buildHistory / periodReturn', () => {
     });
     expect(points.length).toBeLessThanOrEqual(101);
     expect(points[points.length - 1].date).toBe('2024-12-31');
+  });
+});
+
+describe('buildIntradayHistory', () => {
+  it('unisce gli orari dei titoli e riporta in avanti i prezzi', () => {
+    const milano: Asset = {
+      id: 'isp', name: 'Intesa', type: 'Azione', ticker: 'ISP.MI', currency: 'EUR', initialValue: 0, currentValue: 0,
+      transactions: [{ id: '1', type: 'buy', date: '2024-01-01', quantity: 10, price: 5 }],
+    };
+    const usa: Asset = {
+      id: 'aapl', name: 'Apple', type: 'Azione', ticker: 'AAPL', currency: 'USD', initialValue: 0, currentValue: 0,
+      transactions: [{ id: '1', type: 'buy', date: '2024-01-01', quantity: 1, price: 100 }],
+    };
+    const conto: Asset = {
+      id: 'cc', name: 'Conto', type: 'Conto Bancario', currency: 'EUR', initialValue: 1000, currentValue: 1000,
+      balanceHistory: [{ date: '2024-01-01', value: 1000 }],
+    };
+    const points = buildIntradayHistory({
+      assets: [milano, usa, conto],
+      prices: {
+        'ISP.MI': [
+          { date: '2026-10-13T07:00:00.000Z', close: 6 },
+          { date: '2026-10-13T15:00:00.000Z', close: 6.2 },
+        ],
+        // Wall Street apre dopo Milano: prima del primo prezzo vale il primo noto
+        AAPL: [
+          { date: '2026-10-13T13:30:00.000Z', close: 110 },
+          { date: '2026-10-13T19:00:00.000Z', close: 120 },
+        ],
+      },
+      fxHistory: { USD: [{ date: '2026-10-13T00:00:00.000Z', close: 0.9 }] },
+      fxNow: { USD: 0.8 },
+    });
+
+    expect(points.map(p => p.date)).toEqual([
+      '2026-10-13T07:00:00.000Z',
+      '2026-10-13T13:30:00.000Z',
+      '2026-10-13T15:00:00.000Z',
+      '2026-10-13T19:00:00.000Z',
+    ]);
+    expect(points.map(p => p.investments)).toEqual([60 + 99, 60 + 99, 62 + 99, 62 + 108]);
+    expect(points.every(p => p.cash === 1000)).toBe(true);
+    expect(points[0].invested).toBeCloseTo(50 + 90);
+    expect(points[3].netWorth).toBeCloseTo(1170);
+  });
+
+  it('senza prezzi restituisce una serie vuota', () => {
+    expect(buildIntradayHistory({ assets: [], prices: {}, fxHistory: {}, fxNow: {} })).toEqual([]);
   });
 });

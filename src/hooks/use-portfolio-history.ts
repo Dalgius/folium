@@ -4,20 +4,34 @@ import { useEffect, useMemo, useState } from 'react';
 import { format, parseISO, startOfYear, subDays, subMonths, subYears } from 'date-fns';
 import type { Asset } from '@/types';
 import { isMarketAsset } from '@/lib/asset-types';
-import { buildHistory, dayKey, todayKey, type FxRates, type PricePoint } from '@/lib/portfolio';
-import { getFxHistory, getPriceHistory } from '@/lib/market';
+import { buildHistory, buildIntradayHistory, dayKey, todayKey, type FxRates, type PricePoint } from '@/lib/portfolio';
+import {
+  getFxHistory,
+  getIntradayFxHistory,
+  getIntradayHistory,
+  getPriceHistory,
+  type IntradayInterval,
+  type IntradayRange,
+} from '@/lib/market';
 
-export type Period = '1M' | '3M' | '6M' | 'YTD' | '1A' | '5A' | 'MAX';
+export type Period = '1G' | '1S' | '1M' | 'YTD' | '1A' | 'MAX';
 
 export const PERIODS: { value: Period; label: string }[] = [
+  { value: '1G', label: '1G' },
+  { value: '1S', label: '1S' },
   { value: '1M', label: '1M' },
-  { value: '3M', label: '3M' },
-  { value: '6M', label: '6M' },
   { value: 'YTD', label: 'YTD' },
   { value: '1A', label: '1A' },
-  { value: '5A', label: '5A' },
-  { value: 'MAX', label: 'Max' },
+  { value: 'MAX', label: 'MAX' },
 ];
+
+/** Periodi brevi: dati infragiornalieri invece delle chiusure giornaliere */
+const INTRADAY: Partial<Record<Period, { range: IntradayRange; interval: IntradayInterval }>> = {
+  '1G': { range: '1d', interval: '5m' },
+  '1S': { range: '5d', interval: '30m' },
+};
+
+export const isIntradayPeriod = (period: Period) => period in INTRADAY;
 
 /** Prima data rilevante del portafoglio (prima operazione o primo saldo). */
 export function firstActivity(assets: Asset[]): string {
@@ -33,12 +47,11 @@ function periodStart(period: Period, assets: Asset[]): string {
   const first = firstActivity(assets);
   let start: Date;
   switch (period) {
+    case '1G': start = subDays(today, 1); break;
+    case '1S': start = subDays(today, 7); break;
     case '1M': start = subMonths(today, 1); break;
-    case '3M': start = subMonths(today, 3); break;
-    case '6M': start = subMonths(today, 6); break;
     case 'YTD': start = startOfYear(today); break;
     case '1A': start = subYears(today, 1); break;
-    case '5A': start = subYears(today, 5); break;
     case 'MAX': return first;
   }
   const key = format(start, 'yyyy-MM-dd');
@@ -62,9 +75,11 @@ export function usePortfolioHistory(assets: Asset[], fx: FxRates, period: Period
     () => Array.from(new Set(assets.map(a => a.currency))).filter(c => c !== 'EUR').sort(),
     [assets],
   );
+  const intraday = INTRADAY[period];
   // Si scaricano anche alcuni giorni prima dell'inizio per avere l'ultima chiusura nota
   const fetchFrom = format(subDays(parseISO(start), 10), 'yyyy-MM-dd');
-  const key = `${fetchFrom}|${tickers.join(',')}|${currencies.join(',')}`;
+  const source = intraday ? `${intraday.range}/${intraday.interval}` : fetchFrom;
+  const key = `${source}|${tickers.join(',')}|${currencies.join(',')}`;
 
   const [data, setData] = useState<MarketData | null>(null);
   const [error, setError] = useState(false);
@@ -73,8 +88,16 @@ export function usePortfolioHistory(assets: Asset[], fx: FxRates, period: Period
     let cancelled = false;
     setError(false);
     Promise.all([
-      tickers.length ? getPriceHistory(tickers, fetchFrom) : Promise.resolve({}),
-      currencies.length ? getFxHistory(currencies, fetchFrom) : Promise.resolve({}),
+      !tickers.length
+        ? Promise.resolve({})
+        : intraday
+          ? getIntradayHistory(tickers, intraday.range, intraday.interval)
+          : getPriceHistory(tickers, fetchFrom),
+      !currencies.length
+        ? Promise.resolve({})
+        : intraday
+          ? getIntradayFxHistory(currencies, intraday.range, intraday.interval)
+          : getFxHistory(currencies, fetchFrom),
     ])
       .then(([prices, fxHistory]) => {
         if (!cancelled) setData({ key, prices: prices ?? {}, fxHistory: fxHistory ?? {} });
@@ -97,6 +120,9 @@ export function usePortfolioHistory(assets: Asset[], fx: FxRates, period: Period
 
   const points = useMemo(() => {
     if (!data || assets.length === 0) return [];
+    if (intraday) {
+      return buildIntradayHistory({ assets, prices: data.prices, fxHistory: data.fxHistory, fxNow: fx });
+    }
     const today = todayKey();
     // Aggiunge il prezzo live di oggi se lo storico non lo contiene ancora
     const prices: Record<string, PricePoint[]> = { ...data.prices };
@@ -109,7 +135,7 @@ export function usePortfolioHistory(assets: Asset[], fx: FxRates, period: Period
       }
     }
     return buildHistory({ assets, prices, fxHistory: data.fxHistory, fxNow: fx, start, end: today });
-  }, [data, assets, fx, start]);
+  }, [data, assets, fx, start, intraday]);
 
   return { points, loading, error };
 }

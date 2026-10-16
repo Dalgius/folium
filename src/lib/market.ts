@@ -73,25 +73,45 @@ export async function getExchangeRates(currencies: string[], to = 'EUR', options
   return rates;
 }
 
-/** Storico delle chiusure giornaliere dalla data `start` (yyyy-MM-dd). */
-export async function getPriceHistory(tickers: string[], start: string): Promise<Record<string, PricePoint[]>> {
+async function fetchHistory(tickers: string[], query: string): Promise<Record<string, PricePoint[]>> {
   const symbols = unique(tickers);
   const parts = await Promise.all(
     chunks(symbols, CHUNK).map(group =>
-      getJson<{ history?: Record<string, PricePoint[]> }>(
-        `/api/history?start=${start}&symbols=${encodeURIComponent(group.join(','))}`,
-      ),
+      getJson<{ history?: Record<string, PricePoint[]> }>(`/api/history?${query}&symbols=${encodeURIComponent(group.join(','))}`),
     ),
   );
   return Object.assign({}, ...parts.map(p => p?.history ?? {}));
 }
 
+const fxNeeded = (currencies: string[], to: string) => unique(currencies).filter(c => c !== to && /^[A-Z]{3}$/.test(c));
+
+/** Storico delle chiusure giornaliere dalla data `start` (yyyy-MM-dd). */
+export async function getPriceHistory(tickers: string[], start: string): Promise<Record<string, PricePoint[]>> {
+  return fetchHistory(tickers, `start=${start}`);
+}
+
 /** Storico dei cambi valuta→`to` dalla data `start`. */
 export async function getFxHistory(currencies: string[], start: string, to = 'EUR'): Promise<Record<string, PricePoint[]>> {
-  const needed = unique(currencies).filter(c => c !== to && /^[A-Z]{3}$/.test(c));
+  const needed = fxNeeded(currencies, to);
   if (needed.length === 0) return {};
   const history = await getPriceHistory(needed.map(c => fxSymbol(c, to)), start);
   return Object.fromEntries(needed.map(c => [c, history[fxSymbol(c, to)] ?? []]));
+}
+
+export type IntradayRange = '1d' | '5d';
+export type IntradayInterval = '5m' | '15m' | '30m' | '1h';
+
+/** Prezzi infragiornalieri (date ISO con orario) per l'ultima seduta o settimana. */
+export async function getIntradayHistory(tickers: string[], range: IntradayRange, interval: IntradayInterval) {
+  return fetchHistory(tickers, `range=${range}&interval=${interval}`);
+}
+
+/** Cambi infragiornalieri valuta→`to`. */
+export async function getIntradayFxHistory(currencies: string[], range: IntradayRange, interval: IntradayInterval, to = 'EUR') {
+  const needed = fxNeeded(currencies, to);
+  if (needed.length === 0) return {};
+  const history = await getIntradayHistory(needed.map(c => fxSymbol(c, to)), range, interval);
+  return Object.fromEntries(needed.map(c => [c, history[fxSymbol(c, to)] ?? []])) as Record<string, PricePoint[]>;
 }
 
 /**

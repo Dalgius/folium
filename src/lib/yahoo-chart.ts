@@ -64,8 +64,11 @@ function firstResult(json: unknown): ChartResult | null {
 
 const utcDay = (seconds: number) => new Date(seconds * 1000).toISOString().slice(0, 10);
 
-/** Chiusure giornaliere (data UTC yyyy-MM-dd) già convertite nell'unità principale. */
-export function parseChartHistory(json: unknown): PricePoint[] {
+/**
+ * Chiusure già convertite nell'unità principale. Con dati giornalieri la data è il
+ * giorno UTC (yyyy-MM-dd); con `intraday` è il timestamp ISO completo.
+ */
+export function parseChartHistory(json: unknown, { intraday = false }: { intraday?: boolean } = {}): PricePoint[] {
   const result = firstResult(json);
   if (!result) return [];
   const { factor } = normalizeCurrency(result.meta?.currency);
@@ -75,7 +78,7 @@ export function parseChartHistory(json: unknown): PricePoint[] {
   timestamps.forEach((t, i) => {
     const close = closes[i];
     if (typeof t === 'number' && typeof close === 'number' && close > 0) {
-      points.push({ date: utcDay(t), close: close * factor });
+      points.push({ date: intraday ? new Date(t * 1000).toISOString() : utcDay(t), close: close * factor });
     }
   });
   return points;
