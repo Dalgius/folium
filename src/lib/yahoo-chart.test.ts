@@ -56,6 +56,11 @@ describe('parseChartHistory', () => {
     const h = parseChartHistory(chart('AAPL', { closes: [1, 0, 3] }));
     expect(h.map(p => p.date)).toEqual(['2026-10-09', '2026-10-13']);
   });
+
+  it('con intraday mantiene data e ora', () => {
+    const h = parseChartHistory(chart('AAPL'), { intraday: true });
+    expect(h[0].date).toBe('2026-10-09T08:00:00.000Z');
+  });
 });
 
 describe('route Edge', () => {
@@ -85,6 +90,23 @@ describe('route Edge', () => {
     const res = await quotesRoute(new Request('https://folium.test/api/quotes?symbols=ISP.MI'));
     expect((await res.json()).quotes).toEqual({});
     expect(res.headers.get('Cache-Control')).toBe('no-store');
+  });
+
+  it('accetta range e interval infragiornalieri e rifiuta i valori non ammessi', async () => {
+    const urls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      urls.push(url);
+      return Response.json(chart(decodeURIComponent(new URL(url).pathname.split('/').pop()!)));
+    }));
+    const ok = await historyRoute(new Request('https://folium.test/api/history?symbols=ISP.MI&range=1d&interval=5m'));
+    const body = await ok.json();
+    expect(body.history['ISP.MI'][0].date).toMatch(/T08:00:00.000Z$/);
+    expect(urls[0]).toContain('range=1d');
+    expect(urls[0]).toContain('interval=5m');
+    expect(ok.headers.get('Cache-Control')).toMatch(/s-maxage=120/);
+
+    expect((await historyRoute(new Request('https://folium.test/api/history?symbols=ISP.MI&range=10y&interval=5m'))).status).toBe(400);
+    expect((await historyRoute(new Request('https://folium.test/api/history?symbols=ISP.MI&range=1d&interval=1s'))).status).toBe(400);
   });
 
   it('restituisce lo storico e valida la data di inizio', async () => {

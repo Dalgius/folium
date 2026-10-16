@@ -382,10 +382,11 @@ export interface HistoryInput {
 }
 
 /** Restituisce una funzione che dà l'ultimo valore noto fino al giorno richiesto (giorni crescenti). */
-function carryForward(series: PricePoint[] | undefined) {
+function carryForward(series: PricePoint[] | undefined, { backfill = false } = {}) {
   const sorted = series ? [...series].sort((a, b) => a.date.localeCompare(b.date)) : [];
   let i = 0;
-  let last: number | undefined;
+  // Con `backfill`, prima del primo punto si usa il primo valore noto
+  let last: number | undefined = backfill ? sorted[0]?.close : undefined;
   return (day: string): number | undefined => {
     while (i < sorted.length && sorted[i].date <= day) {
       last = sorted[i].close;
@@ -451,6 +452,93 @@ export function buildHistory({ assets, prices, fxHistory, fxNow, start, end = to
 
     points.push({ date: day, netWorth: investments + cash, investments, invested, cash });
   }
+
+  return downsample(points, maxPoints);
+}
+
+export interface IntradayInput {
+  assets: Asset[];
+  /** Prezzi infragiornalieri per ticker (date ISO con orario) */
+  prices: Record<string, PricePoint[]>;
+  /** Cambi infragiornalieri valuta→EUR */
+  fxHistory: Record<string, PricePoint[]>;
+  fxNow: FxRates;
+  maxPoints?: number;
+}
+
+/** Posizione valida in un certo giorno, per giorni crescenti. */
+function positionCursor(asset: Asset) {
+  const txs = sortTransactions(asset.transactions ?? []);
+  const timeline: { day: string; position: Position }[] = [];
+  txs.forEach((tx, i) => {
+    const day = dayKey(tx.date) ?? '';
+    const position = computePosition(txs.slice(0, i + 1));
+    if (timeline.length && timeline[timeline.length - 1].day === day) timeline[timeline.length - 1].position = position;
+    else timeline.push({ day, position });
+  });
+  let cursor = -1;
+  return (day: string): Position | null => {
+    while (cursor + 1 < timeline.length && timeline[cursor + 1].day <= day) cursor++;
+    return cursor < 0 ? null : timeline[cursor].position;
+  };
+}
+
+/**
+ * Andamento infragiornaliero (ultima seduta o settimana). L'asse dei tempi è
+ * l'unione degli orari di tutti i titoli; ogni prezzo resta valido fino al
+ * successivo e, prima del primo, vale il primo noto (le borse aprono a orari diversi).
+ */
+export function buildIntradayHistory({ assets, prices, fxHistory, fxNow, maxPoints = 400 }: IntradayInput): HistoryPoint[] {
+  const market = assets.filter(a => isMarketAsset(a.type));
+  const manual = assets.filter(a => !isMarketAsset(a.type));
+
+  const times = Array.from(
+    new Set(market.flatMap(a => (a.ticker ? prices[a.ticker.toUpperCase()] ?? [] : []).map(p => p.date))),
+  ).sort();
+  if (times.length === 0) return [];
+
+  const fxLookups = new Map<string, (time: string) => number | undefined>();
+  for (const currency of new Set(assets.map(a => a.currency))) {
+    if (currency !== BASE_CURRENCY) fxLookups.set(currency, carryForward(fxHistory[currency], { backfill: true }));
+  }
+  // Una sola lettura per valuta e istante: i cursori avanzano solo in avanti
+  const fxAt = (time: string) => {
+    const rates = new Map<string, number | null>();
+    return (currency: string): number | null => {
+      if (currency === BASE_CURRENCY) return 1;
+      if (!rates.has(currency)) rates.set(currency, fxLookups.get(currency)?.(time) ?? fxNow?.[currency] ?? null);
+      return rates.get(currency)!;
+    };
+  };
+
+  const marketState = market.map(asset => ({
+    asset,
+    position: positionCursor(asset),
+    price: carryForward(asset.ticker ? prices[asset.ticker.toUpperCase()] : undefined, { backfill: true }),
+  }));
+  const manualState = manual.map(asset => ({ asset, history: sortBalances(asset.balanceHistory) }));
+
+  const points = times.map(time => {
+    const day = dayKey(time) ?? time.slice(0, 10);
+    const fx = fxAt(time);
+    let investments = 0;
+    let invested = 0;
+    let cash = 0;
+
+    for (const state of marketState) {
+      const close = state.price(time);
+      const position = state.position(day);
+      const rate = fx(state.asset.currency);
+      if (!position || rate === null) continue;
+      investments += position.quantity * (close ?? position.avgPrice) * rate;
+      invested += position.netInvested * rate;
+    }
+    for (const { asset, history } of manualState) {
+      const rate = fx(asset.currency);
+      if (rate !== null) cash += balanceAt(history, day) * rate;
+    }
+    return { date: time, netWorth: investments + cash, investments, invested, cash };
+  });
 
   return downsample(points, maxPoints);
 }
