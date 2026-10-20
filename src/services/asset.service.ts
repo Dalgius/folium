@@ -54,6 +54,7 @@ function fromFirestore(snap: QueryDocumentSnapshot<DocumentData>): Asset {
     dailyChange: data.dailyChange,
     dailyChangePercent: data.dailyChangePercent,
     lastUpdated: toIso(data.lastUpdated),
+    marketTime: toIso(data.marketTime),
     interestRate: data.interestRate,
     taxRate: data.taxRate,
     startDate: toIso(data.startDate),
@@ -169,7 +170,7 @@ export async function deleteAsset(id: string): Promise<void> {
 
 /** Aggiorna in blocco i prezzi di mercato con una sola scrittura. */
 export async function savePrices(
-  updates: { id: string; lastPrice: number; dailyChange?: number; dailyChangePercent?: number; currentValue: number }[],
+  updates: { id: string; lastPrice: number; dailyChange?: number; dailyChangePercent?: number; currentValue: number; marketTime?: string }[],
 ): Promise<void> {
   if (updates.length === 0) return;
   const batch = writeBatch(db);

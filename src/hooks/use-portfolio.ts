@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Asset, BalanceSnapshot, NewAsset, Transaction } from '@/types';
 import { isMarketAsset } from '@/lib/asset-types';
 import { buildHoldings, computePosition, summarize, upsertBalance, type FxRates } from '@/lib/portfolio';
@@ -8,8 +8,11 @@ import { addAsset, deleteAsset, getAssets, newId, saveAsset, savePrices } from '
 import { getExchangeRates, getQuotes } from '@/lib/market';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
+import { ToastAction, type ToastActionElement } from '@/components/ui/toast';
 
 const AUTO_REFRESH_MS = 5 * 60 * 1000;
+/** Tempo a disposizione per annullare un'eliminazione prima della scrittura su Firestore */
+const UNDO_MS = 6000;
 
 export function usePortfolio() {
   const { user } = useAuth();
@@ -61,8 +64,12 @@ export function usePortfolio() {
             dailyChange: quote.dailyChange,
             dailyChangePercent: quote.dailyChangePercent,
             currentValue: quantity * quote.price,
+            marketTime: quote.marketTime,
           };
-          if (next.lastPrice !== asset.lastPrice || next.dailyChange !== asset.dailyChange) {
+          // Si salva se il prezzo cambia o se l'ultimo salvataggio ha più di un'ora,
+          // così la data di aggiornamento resta affidabile senza scrivere a ogni refresh
+          const savedAt = asset.lastUpdated ? Date.parse(asset.lastUpdated) : 0;
+          if (next.lastPrice !== asset.lastPrice || next.dailyChange !== asset.dailyChange || Date.now() - savedAt > 60 * 60 * 1000) {
             updates.push({ id: asset.id, ...next });
           }
           prices.set(asset.id, { ...next, lastUpdated: new Date().toISOString() });
@@ -148,6 +155,70 @@ export function usePortfolio() {
   );
 
   const findAsset = (id: string) => assetsRef.current.find(a => a.id === id);
+
+  // Eliminazioni in attesa: vengono scritte alla scadenza, oppure annullate
+  const pendingRef = useRef(new Map<string, { timer: ReturnType<typeof setTimeout>; commit: () => Promise<void> }>());
+
+  /**
+   * Applica subito un'eliminazione allo stato locale e mostra un toast con "Annulla".
+   * La scrittura su Firestore parte solo alla scadenza; se fallisce, lo stato viene ripristinato.
+   */
+  const deleteWithUndo = useCallback(
+    ({ title, apply, restore, write, error }: { title: string; apply: () => void; restore: () => void; write: () => Promise<void>; error: string }) => {
+      const key = newId();
+      const commit = async () => {
+        pendingRef.current.delete(key);
+        try {
+          await write();
+        } catch (e) {
+          restore();
+          fail(error, e);
+        }
+      };
+      apply();
+      pendingRef.current.set(key, { timer: setTimeout(commit, UNDO_MS), commit });
+      toast({
+        title,
+        duration: UNDO_MS,
+        action: createElement(
+          ToastAction,
+          {
+            altText: 'Annulla eliminazione',
+            onClick: () => {
+              const pending = pendingRef.current.get(key);
+              if (!pending) return;
+              clearTimeout(pending.timer);
+              pendingRef.current.delete(key);
+              restore();
+            },
+          },
+          'Annulla',
+        ) as unknown as ToastActionElement,
+      });
+    },
+    [fail, toast],
+  );
+
+  // Alla chiusura della pagina (o all'uscita) le eliminazioni in attesa vengono scritte subito
+  useEffect(() => {
+    const flush = () => {
+      for (const { timer, commit } of [...pendingRef.current.values()]) {
+        clearTimeout(timer);
+        void commit();
+      }
+    };
+    window.addEventListener('beforeunload', flush);
+    return () => {
+      window.removeEventListener('beforeunload', flush);
+      flush();
+    };
+  }, []);
+
+  /** Salva lo stato locale corrente di un asset (dopo un'eliminazione confermata). */
+  const saveCurrent = async (assetId: string) => {
+    const current = findAsset(assetId);
+    if (current) replace(await saveAsset(current));
+  };
 
   /** Crea un nuovo asset; un titolo già presente riceve invece una nuova operazione. */
   const create = useCallback(
@@ -242,11 +313,20 @@ export function usePortfolio() {
 
   const deleteTransaction = useCallback(
     async (assetId: string, txId: string) => {
-      const asset = findAsset(assetId);
-      if (!asset) return false;
-      return persist({ ...asset, transactions: (asset.transactions ?? []).filter(t => t.id !== txId) }, 'Operazione eliminata');
+      const tx = findAsset(assetId)?.transactions?.find(t => t.id === txId);
+      if (!tx) return false;
+      const patch = (fn: (list: Transaction[]) => Transaction[]) =>
+        setAssets(current => current.map(a => (a.id === assetId ? { ...a, transactions: fn(a.transactions ?? []) } : a)));
+      deleteWithUndo({
+        title: 'Operazione eliminata',
+        apply: () => patch(list => list.filter(t => t.id !== txId)),
+        restore: () => patch(list => [...list, tx]),
+        write: () => saveCurrent(assetId),
+        error: "Impossibile eliminare l'operazione.",
+      });
+      return true;
     },
-    [persist],
+    [deleteWithUndo],
   );
 
   const setBalance = useCallback(
@@ -261,10 +341,24 @@ export function usePortfolio() {
   const deleteBalance = useCallback(
     async (assetId: string, date: string) => {
       const asset = findAsset(assetId);
-      if (!asset || (asset.balanceHistory?.length ?? 0) <= 1) return false;
-      return persist({ ...asset, balanceHistory: asset.balanceHistory!.filter(b => b.date !== date) }, 'Saldo eliminato');
+      const snapshot = asset?.balanceHistory?.find(b => b.date === date);
+      if (!asset || !snapshot || asset.balanceHistory!.length <= 1) return false;
+      deleteWithUndo({
+        title: 'Saldo eliminato',
+        apply: () =>
+          setAssets(current =>
+            current.map(a => (a.id === assetId ? { ...a, balanceHistory: (a.balanceHistory ?? []).filter(b => b.date !== date) } : a)),
+          ),
+        restore: () =>
+          setAssets(current =>
+            current.map(a => (a.id === assetId ? { ...a, balanceHistory: upsertBalance(a.balanceHistory, snapshot) } : a)),
+          ),
+        write: () => saveCurrent(assetId),
+        error: 'Impossibile eliminare il saldo.',
+      });
+      return true;
     },
-    [persist],
+    [deleteWithUndo],
   );
 
   const updateDetails = useCallback(
@@ -278,17 +372,18 @@ export function usePortfolio() {
 
   const remove = useCallback(
     async (assetId: string) => {
-      try {
-        await deleteAsset(assetId);
-        setAssets(current => current.filter(a => a.id !== assetId));
-        toast({ title: 'Asset eliminato' });
-        return true;
-      } catch (error) {
-        fail("Impossibile eliminare l'asset.", error);
-        return false;
-      }
+      const asset = findAsset(assetId);
+      if (!asset) return false;
+      deleteWithUndo({
+        title: `${asset.name} eliminato`,
+        apply: () => setAssets(current => current.filter(a => a.id !== assetId)),
+        restore: () => setAssets(current => (current.some(a => a.id === assetId) ? current : [...current, asset])),
+        write: () => deleteAsset(assetId),
+        error: "Impossibile eliminare l'asset.",
+      });
+      return true;
     },
-    [fail, toast],
+    [deleteWithUndo],
   );
 
   const holdings = useMemo(() => buildHoldings(assets, fx), [assets, fx]);

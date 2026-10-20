@@ -5,7 +5,7 @@ import { signOut } from 'firebase/auth';
 import { useTheme } from 'next-themes';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { Eye, EyeOff, LogOut, Monitor, Moon, Plus, RefreshCw, Sun } from 'lucide-react';
+import { Clock, Eye, EyeOff, LogOut, Monitor, Moon, Plus, RefreshCw, Sun } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { useAuth } from '@/hooks/use-auth';
 import { usePrivacy } from '@/hooks/use-privacy';
@@ -30,9 +30,11 @@ interface AppHeaderProps {
   onRefresh: () => void;
   onAdd: () => void;
   canRefresh: boolean;
+  /** Titoli con prezzo non aggiornato */
+  staleCount?: number;
 }
 
-export function AppHeader({ refreshing, lastRefresh, onRefresh, onAdd, canRefresh }: AppHeaderProps) {
+export function AppHeader({ refreshing, lastRefresh, onRefresh, onAdd, canRefresh, staleCount = 0 }: AppHeaderProps) {
   const { user } = useAuth();
   const { hidden, toggle } = usePrivacy();
   const { theme, setTheme } = useTheme();
@@ -48,11 +50,22 @@ export function AppHeader({ refreshing, lastRefresh, onRefresh, onAdd, canRefres
 
         <TooltipProvider delayDuration={300}>
           <div className="flex items-center gap-1 sm:gap-1.5">
-            {lastRefresh && (
-              <span className="mr-1 hidden text-xs text-muted-foreground md:inline">
-                Aggiornato alle {format(lastRefresh, 'HH:mm', { locale: it })}
+            {staleCount > 0 && !refreshing ? (
+              <span
+                role="status"
+                className="mr-1 inline-flex items-center gap-1 rounded-full bg-cat-4/15 px-2 py-0.5 text-xs font-medium text-foreground"
+                title={`${staleCount} ${staleCount === 1 ? 'titolo ha' : 'titoli hanno'} un prezzo non aggiornato`}
+              >
+                <Clock className="h-3.5 w-3.5 text-cat-4" aria-hidden />
+                <span className="hidden sm:inline">{staleCount === 1 ? '1 prezzo non aggiornato' : `${staleCount} prezzi non aggiornati`}</span>
+                <span className="sm:hidden">{staleCount}</span>
               </span>
-            )}
+            ) : lastRefresh ? (
+              <span role="status" className="mr-1 text-xs text-muted-foreground">
+                <span className="hidden md:inline">Aggiornato alle </span>
+                {format(lastRefresh, 'HH:mm', { locale: it })}
+              </span>
+            ) : null}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="ghost" size="icon" onClick={onRefresh} disabled={!canRefresh || refreshing} aria-label="Aggiorna quotazioni">

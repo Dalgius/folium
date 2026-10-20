@@ -1,9 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { usePortfolio } from '@/hooks/use-portfolio';
+import { isMarketAsset } from '@/lib/asset-types';
+import { dayChangeLabel, isStale } from '@/lib/portfolio';
 import { AppHeader } from '@/components/dashboard/app-header';
 import { StatCards } from '@/components/dashboard/stat-cards';
 import { PerformanceChart } from '@/components/dashboard/performance-chart';
@@ -34,6 +36,9 @@ export default function Dashboard() {
   const selected = holdings.find(h => h.asset.id === selectedId) ?? null;
   const closeDialog = (open: boolean) => !open && setDialog(null);
   const hasInvestments = holdings.some(h => h.group === 'investments');
+  const marketAssets = useMemo(() => assets.filter(a => isMarketAsset(a.type)), [assets]);
+  const dayLabel = useMemo(() => dayChangeLabel(marketAssets.map(a => a.marketTime)), [marketAssets]);
+  const staleCount = useMemo(() => marketAssets.filter(a => isStale(a)).length, [marketAssets]);
 
   const handleAction = (action: HoldingAction, assetId: string) => {
     if (action === 'details') setSelectedId(assetId);
@@ -48,19 +53,19 @@ export default function Dashboard() {
         onRefresh={portfolio.refresh}
         onAdd={() => setDialog({ kind: 'add' })}
         canRefresh={assets.length > 0}
+        staleCount={loading ? 0 : staleCount}
       />
 
       <main className="container mx-auto space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Il tuo patrimonio</h1>
-          <p className="text-sm text-muted-foreground first-letter:uppercase">{format(new Date(), 'EEEE d MMMM yyyy', { locale: it })}</p>
-        </div>
+        <h1 className="text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">Il tuo patrimonio</span> · {format(new Date(), 'EEEE d MMMM', { locale: it })}
+        </h1>
 
         {!loading && assets.length === 0 ? (
           <EmptyState onAdd={initial => setDialog({ kind: 'add', initial })} />
         ) : (
           <>
-            <StatCards summary={summary} loading={loading} />
+            <StatCards summary={summary} loading={loading} dayLabel={dayLabel} />
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
               <div className="lg:col-span-2">
@@ -76,7 +81,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <HoldingsList holdings={holdings} loading={loading} onAction={handleAction} />
+            <HoldingsList holdings={holdings} loading={loading} onAction={handleAction} dayLabel={dayLabel} />
           </>
         )}
       </main>
@@ -119,6 +124,7 @@ export default function Dashboard() {
         onEditTransaction={(assetId, txId) => setDialog({ kind: 'transaction', assetId, txId })}
         onDeleteTransaction={portfolio.deleteTransaction}
         onDeleteBalance={portfolio.deleteBalance}
+        dayLabel={dayLabel}
       />
     </div>
   );

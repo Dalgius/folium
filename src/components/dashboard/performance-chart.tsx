@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Area, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { differenceInCalendarDays, format, parseISO } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -15,6 +15,7 @@ import { Trend } from '@/components/trend';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Segmented } from '@/components/segmented';
+import { HINTS, InfoHint } from '@/components/info-hint';
 import { formatCurrency } from '@/lib/utils';
 
 type Mode = 'netWorth' | 'investments';
@@ -24,6 +25,29 @@ const MODES: { value: Mode; label: string }[] = [
   { value: 'investments', label: 'Investimenti' },
 ];
 
+const STORAGE_KEY = 'folium:chart';
+
+/** Periodo e serie scelti l'ultima volta (solo su questo browser). */
+function loadPrefs(): { period?: Period; mode?: Mode } {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}');
+    return {
+      period: PERIODS.some(p => p.value === saved.period) ? saved.period : undefined,
+      mode: MODES.some(m => m.value === saved.mode) ? saved.mode : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
+function savePrefs(prefs: { period: Period; mode: Mode }) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+  } catch {
+    // archiviazione non disponibile (navigazione privata): si usano i valori predefiniti
+  }
+}
+
 interface PerformanceChartProps {
   assets: Asset[];
   fx: FxRates;
@@ -31,12 +55,27 @@ interface PerformanceChartProps {
 }
 
 export function PerformanceChart({ assets, fx, hasInvestments }: PerformanceChartProps) {
-  const [period, setPeriod] = useState<Period>('1A');
-  const [modeState, setMode] = useState<Mode>('netWorth');
+  const [period, setPeriodState] = useState<Period>('1A');
+  const [modeState, setModeState] = useState<Mode>('netWorth');
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const { hidden } = usePrivacy();
   const mode: Mode = hasInvestments ? modeState : 'netWorth';
   const { points, loading } = usePortfolioHistory(assets, fx, period);
+
+  // Letto dopo il montaggio per non creare differenze con il rendering sul server
+  useEffect(() => {
+    const prefs = loadPrefs();
+    if (prefs.period) setPeriodState(prefs.period);
+    if (prefs.mode) setModeState(prefs.mode);
+  }, []);
+  const setPeriod = (value: Period) => {
+    setPeriodState(value);
+    savePrefs({ period: value, mode: modeState });
+  };
+  const setMode = (value: Mode) => {
+    setModeState(value);
+    savePrefs({ period, mode: value });
+  };
 
   const data = useMemo(
     () => points.map(p => ({ ...p, value: mode === 'netWorth' ? p.netWorth : p.investments })),
@@ -96,7 +135,12 @@ export function PerformanceChart({ assets, fx, hasInvestments }: PerformanceChar
                     {hoverIndex !== null && current
                       ? `al ${format(parseISO(current.date), pointFormat, { locale: it })}`
                       : mode === 'investments'
-                        ? 'rendimento nel periodo, al netto dei versamenti'
+                        ? (
+                          <span className="inline-flex items-center gap-1">
+                            rendimento nel periodo, al netto dei versamenti
+                            <InfoHint text={HINTS.periodReturn} />
+                          </span>
+                        )
                         : period === '1G'
                           ? "nell'ultima seduta"
                           : 'nel periodo'}
@@ -116,6 +160,7 @@ export function PerformanceChart({ assets, fx, hasInvestments }: PerformanceChar
           </span>
           <span className="flex items-center gap-1.5">
             <span className="h-0 w-4 border-t-2 border-dashed border-muted-foreground" /> Capitale investito
+            <InfoHint text={HINTS.invested} />
           </span>
         </div>
       )}

@@ -57,6 +57,8 @@ export interface Asset {
   dailyChangePercent?: number;
   /** Data ISO dell'ultimo aggiornamento del prezzo */
   lastUpdated?: string;
+  /** Data ISO dell'ultima quotazione di mercato (ultima seduta) */
+  marketTime?: string;
 
   // --- Conti e beni a valore manuale -----------------------------------------
   balanceHistory?: BalanceSnapshot[];

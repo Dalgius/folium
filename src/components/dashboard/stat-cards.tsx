@@ -1,19 +1,21 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { format, parseISO } from 'date-fns';
 import { AlertTriangle } from 'lucide-react';
 import type { PortfolioSummary } from '@/lib/portfolio';
 import { Money } from '@/components/money';
 import { Trend } from '@/components/trend';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { HINTS, InfoHint } from '@/components/info-hint';
 import { cn, formatPercent } from '@/lib/utils';
 
-function StatCard({ label, children, footer, className }: { label: string; children: ReactNode; footer?: ReactNode; className?: string }) {
+function StatCard({ label, children, footer, className }: { label: ReactNode; children: ReactNode; footer?: ReactNode; className?: string }) {
   return (
     <Card className={cn('flex flex-col justify-between gap-3 p-5', className)}>
       <div className="space-y-1.5">
-        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        <p className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">{label}</p>
         <div className="text-2xl font-semibold tracking-tight">{children}</div>
       </div>
       {footer && <div className="text-sm text-muted-foreground">{footer}</div>}
@@ -21,7 +23,14 @@ function StatCard({ label, children, footer, className }: { label: string; child
   );
 }
 
-export function StatCards({ summary, loading }: { summary: PortfolioSummary; loading: boolean }) {
+interface StatCardsProps {
+  summary: PortfolioSummary;
+  loading: boolean;
+  /** "oggi" se i prezzi sono della giornata, altrimenti "ultima seduta" */
+  dayLabel?: string;
+}
+
+export function StatCards({ summary, loading, dayLabel = 'oggi' }: StatCardsProps) {
   if (loading) {
     return (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -36,7 +45,7 @@ export function StatCards({ summary, loading }: { summary: PortfolioSummary; loa
     );
   }
 
-  const { netWorth, liquidity, investments, other, investedCost, unrealizedPL, unrealizedPLPct, realizedPL, dayChange, dayChangePct, hasDayChange, accruedInterestNet, missingFx } = summary;
+  const { netWorth, liquidity, investments, other, investedCost, unrealizedPL, unrealizedPLPct, realizedPL, dayChange, dayChangePct, hasDayChange, accruedInterestNet, lockedLiquidity, nextUnlock, missingFx } = summary;
   const share = (v: number) => (netWorth > 0 ? formatPercent(v / netWorth, { signed: false, digits: 0 }) : '—');
   const previousNetWorth = netWorth - dayChange;
 
@@ -50,7 +59,7 @@ export function StatCards({ summary, loading }: { summary: PortfolioSummary; loa
             hasDayChange ? (
               <span className="flex flex-wrap items-center gap-x-1.5">
                 <Trend value={dayChange} pct={previousNetWorth > 0 ? dayChange / previousNetWorth : 0} />
-                <span>oggi</span>
+                <span>{dayLabel}</span>
               </span>
             ) : other > 0 ? (
               <span>di cui altri beni <Money value={other} /></span>
@@ -66,9 +75,23 @@ export function StatCards({ summary, loading }: { summary: PortfolioSummary; loa
           label="Liquidità"
           footer={
             <>
-              <p>{share(liquidity)} del patrimonio</p>
+              {lockedLiquidity > 0 ? (
+                <>
+                  <p>disponibile <Money value={liquidity - lockedLiquidity} /></p>
+                  <p className="flex flex-wrap items-center gap-x-1">
+                    vincolata <Money value={lockedLiquidity} />
+                    <InfoHint text={HINTS.locked} />
+                    {nextUnlock && <span>fino al {format(parseISO(nextUnlock), 'dd/MM/yyyy')}</span>}
+                  </p>
+                </>
+              ) : (
+                <p>{share(liquidity)} del patrimonio</p>
+              )}
               {accruedInterestNet > 0 && (
-                <p>interessi maturati <Money value={accruedInterestNet} className="text-positive" signed /></p>
+                <p className="flex flex-wrap items-center gap-x-1">
+                  interessi maturati <Money value={accruedInterestNet} className="text-positive" signed />
+                  <InfoHint text={HINTS.accrued} />
+                </p>
               )}
             </>
           }
@@ -82,7 +105,7 @@ export function StatCards({ summary, loading }: { summary: PortfolioSummary; loa
             hasDayChange ? (
               <span className="flex flex-wrap items-center gap-x-1.5">
                 <Trend value={dayChange} pct={dayChangePct} />
-                <span>oggi</span>
+                <span>{dayLabel}</span>
               </span>
             ) : (
               <span>{share(investments)} del patrimonio</span>
@@ -93,11 +116,15 @@ export function StatCards({ summary, loading }: { summary: PortfolioSummary; loa
         </StatCard>
 
         <StatCard
-          label="Plus/minusvalenze latenti"
+          label={<>Plus/minusvalenze latenti <InfoHint text={HINTS.unrealized} /></>}
           footer={
             <>
               <p>su <Money value={investedCost} /> investiti</p>
-              {Math.abs(realizedPL) > 0.005 && <p>realizzate <Money value={realizedPL} signed /></p>}
+              {Math.abs(realizedPL) > 0.005 && (
+                <p className="flex flex-wrap items-center gap-x-1">
+                  realizzate <Money value={realizedPL} signed /> <InfoHint text={HINTS.realized} />
+                </p>
+              )}
             </>
           }
         >

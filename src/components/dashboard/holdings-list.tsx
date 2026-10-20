@@ -3,10 +3,10 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { format, parseISO } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { ArrowLeftRight, MoreHorizontal, Pencil, Search, SearchX, Trash2, Wallet } from 'lucide-react';
+import { ArrowLeftRight, MoreHorizontal, Pencil, Search, SearchX, Trash2, Wallet, Clock } from 'lucide-react';
 import type { Holding } from '@/lib/portfolio';
 import { GROUP_LABEL, typeMeta, type AssetGroup } from '@/lib/asset-types';
-import { latestBalance, sortBalances } from '@/lib/portfolio';
+import { isStale, latestBalance, sortBalances } from '@/lib/portfolio';
 import { Money } from '@/components/money';
 import { Trend } from '@/components/trend';
 import { AssetBadge } from '@/components/asset-icons';
@@ -36,7 +36,7 @@ const SORTS: { value: Sort; label: string }[] = [
   { value: 'value', label: 'Valore' },
   { value: 'name', label: 'Nome' },
   { value: 'performance', label: 'Rendimento' },
-  { value: 'day', label: 'Variazione oggi' },
+  { value: 'day', label: 'Variazione giornaliera' },
 ];
 
 // Colonne su desktop: nome | dettaglio | oggi | valore | rendimento | peso | azioni
@@ -61,9 +61,11 @@ interface HoldingsListProps {
   holdings: Holding[];
   loading: boolean;
   onAction: (action: HoldingAction, assetId: string) => void;
+  /** "oggi" o "ultima seduta" */
+  dayLabel?: string;
 }
 
-export function HoldingsList({ holdings, loading, onAction }: HoldingsListProps) {
+export function HoldingsList({ holdings, loading, onAction, dayLabel = 'oggi' }: HoldingsListProps) {
   const [filter, setFilter] = useState<Filter>('all');
   const [sort, setSort] = useState<Sort>('value');
   const [search, setSearch] = useState('');
@@ -144,7 +146,7 @@ export function HoldingsList({ holdings, loading, onAction }: HoldingsListProps)
           <div role="row" className={cn('hidden border-b bg-muted/40 px-5 py-2 text-xs font-medium text-muted-foreground', GRID)}>
             <span role="columnheader">Nome</span>
             <span role="columnheader">Dettaglio</span>
-            <span role="columnheader" className="text-right">Oggi</span>
+            <span role="columnheader" className="text-right">{dayLabel === 'oggi' ? 'Oggi' : 'Ultima seduta'}</span>
             <span role="columnheader" className="text-right">Valore</span>
             <span role="columnheader" className="text-right">Rendimento</span>
             <span role="columnheader" className="text-right">Peso</span>
@@ -171,6 +173,7 @@ function HoldingRow({ holding: h, onAction }: { holding: Holding; onAction: Hold
   const { asset } = h;
   const meta = typeMeta(asset.type);
   const subtitle = [meta.isMarket ? asset.ticker : meta.label, asset.institution].filter(Boolean).join(' · ');
+  const stale = isStale(asset);
 
   let detail: ReactNode = <span className="text-muted-foreground">—</span>;
   let detailSub: ReactNode = null;
@@ -226,7 +229,15 @@ function HoldingRow({ holding: h, onAction }: { holding: Holding; onAction: Hold
       <div role="cell" className="flex min-w-0 flex-1 items-center gap-3">
         <AssetBadge type={asset.type} />
         <div className="min-w-0">
-          <p className="truncate font-medium" title={asset.name}>{asset.name}</p>
+          <p className="flex items-center gap-1.5 font-medium" title={asset.name}>
+            <span className="truncate">{asset.name}</span>
+            {stale && (
+              <span className="inline-flex shrink-0 text-cat-4" title={`Prezzo non aggiornato${asset.lastUpdated ? ` (del ${format(parseISO(asset.lastUpdated), 'dd/MM HH:mm')})` : ''}`}>
+                <Clock className="h-3.5 w-3.5" aria-hidden />
+                <span className="sr-only">Prezzo non aggiornato</span>
+              </span>
+            )}
+          </p>
           <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
         </div>
       </div>

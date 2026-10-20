@@ -6,7 +6,9 @@ import {
   buildHoldings,
   buildIntradayHistory,
   computePosition,
+  dayChangeLabel,
   depositInterest,
+  isStale,
   periodReturn,
   summarize,
   upsertBalance,
@@ -156,6 +158,61 @@ describe('buildHoldings / summarize', () => {
     );
     expect(summary.netWorth).toBe(0);
     expect(summary.missingFx).toEqual(['CHF']);
+  });
+});
+
+describe('liquidità vincolata', () => {
+  const deposit = (id: string, maturityDate?: string): Asset => ({
+    id,
+    name: `Deposito ${id}`,
+    type: 'Conto Deposito',
+    currency: 'EUR',
+    initialValue: 1000,
+    currentValue: 1000,
+    balanceHistory: [{ date: '2026-01-01', value: 1000 }],
+    maturityDate,
+  });
+
+  it('separa i depositi non ancora scaduti e indica la scadenza più vicina', () => {
+    const holdings = buildHoldings([deposit('a', '2027-06-30'), deposit('b', '2026-12-31'), deposit('c', '2026-03-01'), deposit('d')], {});
+    const summary = summarize(holdings, '2026-10-20');
+    const valueOf = (id: string) => holdings.find(h => h.asset.id === id)!.valueEur!;
+    expect(summary.lockedLiquidity).toBeCloseTo(valueOf('a') + valueOf('b'));
+    expect(summary.nextUnlock).toBe('2026-12-31');
+  });
+
+  it('senza vincoli attivi è zero', () => {
+    const summary = summarize(buildHoldings([deposit('c', '2026-03-01')], {}), '2026-10-20');
+    expect(summary.lockedLiquidity).toBe(0);
+    expect(summary.nextUnlock).toBeNull();
+  });
+});
+
+describe('isStale / dayChangeLabel', () => {
+  // martedì 20 ottobre 2026, ore 10
+  const tuesday = new Date(2026, 9, 20, 10);
+  const monday = new Date(2026, 9, 19, 10);
+
+  it("segnala i prezzi più vecchi dell'ultimo giorno lavorativo", () => {
+    expect(isStale(etf({ lastUpdated: new Date(2026, 9, 19, 18).toISOString() }), tuesday)).toBe(false);
+    expect(isStale(etf({ lastUpdated: new Date(2026, 9, 16, 18).toISOString() }), tuesday)).toBe(true);
+    expect(isStale(etf({ lastUpdated: undefined }), tuesday)).toBe(true);
+  });
+
+  it('il fine settimana non conta', () => {
+    // lunedì: un prezzo di venerdì è ancora valido
+    expect(isStale(etf({ lastUpdated: new Date(2026, 9, 16, 18).toISOString() }), monday)).toBe(false);
+    expect(isStale(etf({ lastUpdated: new Date(2026, 9, 15, 18).toISOString() }), monday)).toBe(true);
+  });
+
+  it('ignora conti e depositi', () => {
+    expect(isStale({ id: 'cc', name: 'Conto', type: 'Conto Bancario', currency: 'EUR', initialValue: 0, currentValue: 0 }, tuesday)).toBe(false);
+  });
+
+  it('parla di "oggi" solo se una quotazione è di oggi', () => {
+    expect(dayChangeLabel([new Date(2026, 9, 20, 9).toISOString()], tuesday)).toBe('oggi');
+    expect(dayChangeLabel([new Date(2026, 9, 19, 17).toISOString(), undefined], tuesday)).toBe('ultima seduta');
+    expect(dayChangeLabel([], tuesday)).toBe('ultima seduta');
   });
 });
 
