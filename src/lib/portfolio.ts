@@ -1,4 +1,4 @@
-import { addDays, differenceInCalendarDays, format, isValid, parseISO } from 'date-fns';
+import { addDays, differenceInCalendarDays, format, isValid, parseISO, subDays } from 'date-fns';
 import type { Asset, AssetType, BalanceSnapshot, Transaction } from '@/types';
 import { ASSET_TYPES, isMarketAsset, typeMeta, type AssetGroup } from '@/lib/asset-types';
 
@@ -279,14 +279,19 @@ export interface PortfolioSummary {
   dayChangePct: number;
   hasDayChange: boolean;
   accruedInterestNet: number;
+  /** Parte della liquidità in conti deposito vincolati non ancora scaduti */
+  lockedLiquidity: number;
+  /** Scadenza del vincolo più vicina (yyyy-MM-dd) */
+  nextUnlock: string | null;
   allocation: AllocationSlice[];
   /** Valute per cui non è disponibile il cambio (esclusi dai totali) */
   missingFx: string[];
 }
 
-export function summarize(holdings: Holding[]): PortfolioSummary {
+export function summarize(holdings: Holding[], today: string = todayKey()): PortfolioSummary {
   let liquidity = 0, investments = 0, other = 0, investedCost = 0, realizedPL = 0;
-  let dayChange = 0, accruedInterestNet = 0;
+  let dayChange = 0, accruedInterestNet = 0, lockedLiquidity = 0;
+  let nextUnlock: string | null = null;
   let hasDayChange = false;
   const missingFx = new Set<string>();
   const byType = new Map<AssetType, { value: number; count: number }>();
@@ -307,6 +312,11 @@ export function summarize(holdings: Holding[]): PortfolioSummary {
       hasDayChange = true;
     }
     if (h.deposit) accruedInterestNet += h.deposit.accruedNet * h.fx;
+    const maturity = h.asset.type === 'Conto Deposito' ? dayKey(h.asset.maturityDate) : null;
+    if (maturity && maturity > today) {
+      lockedLiquidity += h.valueEur;
+      if (!nextUnlock || maturity < nextUnlock) nextUnlock = maturity;
+    }
 
     const slot = byType.get(h.asset.type) ?? { value: 0, count: 0 };
     slot.value += h.valueEur;
@@ -340,9 +350,42 @@ export function summarize(holdings: Holding[]): PortfolioSummary {
     dayChangePct: previousInvestments > 0 ? dayChange / previousInvestments : 0,
     hasDayChange,
     accruedInterestNet,
+    lockedLiquidity,
+    nextUnlock,
     allocation,
     missingFx: Array.from(missingFx),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Freschezza dei prezzi
+// ---------------------------------------------------------------------------
+
+/** Giorno lavorativo precedente (yyyy-MM-dd), saltando sabato e domenica. */
+function previousBusinessDay(now: Date): string {
+  let d = subDays(now, 1);
+  while (d.getDay() === 0 || d.getDay() === 6) d = subDays(d, 1);
+  return format(d, 'yyyy-MM-dd');
+}
+
+/**
+ * Prezzo non aggiornato: l'ultimo aggiornamento è precedente al giorno
+ * lavorativo prima di oggi. Vale solo per i titoli quotati.
+ */
+export function isStale(asset: Asset, now: Date = new Date()): boolean {
+  if (!isMarketAsset(asset.type)) return false;
+  const last = dayKey(asset.lastUpdated);
+  if (!last) return true;
+  return last < previousBusinessDay(now);
+}
+
+/**
+ * Etichetta della variazione giornaliera: "oggi" se almeno un prezzo è della
+ * giornata, altrimenti "ultima seduta" (sera, fine settimana, festivi).
+ */
+export function dayChangeLabel(marketTimes: (string | undefined)[], now: Date = new Date()): 'oggi' | 'ultima seduta' {
+  const today = format(now, 'yyyy-MM-dd');
+  return marketTimes.some(t => dayKey(t) === today) ? 'oggi' : 'ultima seduta';
 }
 
 // ---------------------------------------------------------------------------

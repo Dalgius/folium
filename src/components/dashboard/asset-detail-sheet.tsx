@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { format, parseISO } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
 import { ArrowLeftRight, Pencil, Trash2, Wallet, X } from 'lucide-react';
 import type { Holding } from '@/lib/portfolio';
-import { sortBalances, sortTransactions } from '@/lib/portfolio';
+import { isStale, sortBalances, sortTransactions } from '@/lib/portfolio';
 import { typeMeta } from '@/lib/asset-types';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,7 @@ import { Progress } from '@/components/ui/progress';
 import { AssetBadge } from '@/components/asset-icons';
 import { Money } from '@/components/money';
 import { Trend } from '@/components/trend';
-import { ConfirmDialog } from '@/components/forms/confirm-dialog';
+import { HINTS, InfoHint } from '@/components/info-hint';
 import { cn, formatNumber, formatPercent } from '@/lib/utils';
 import type { HoldingAction } from '@/components/dashboard/holdings-list';
 
@@ -27,6 +27,8 @@ interface AssetDetailSheetProps {
   onEditTransaction: (assetId: string, txId: string) => void;
   onDeleteTransaction: (assetId: string, txId: string) => Promise<boolean>;
   onDeleteBalance: (assetId: string, date: string) => Promise<boolean>;
+  /** "oggi" o "ultima seduta" */
+  dayLabel?: string;
 }
 
 const fmtDate = (d: string, pattern = 'd MMM yyyy') => format(parseISO(d), pattern, { locale: it });
@@ -40,9 +42,7 @@ function Metric({ label, children, className }: { label: string; children: React
   );
 }
 
-export function AssetDetailSheet({ holding, open, onOpenChange, onAction, onEditTransaction, onDeleteTransaction, onDeleteBalance }: AssetDetailSheetProps) {
-  const [pendingDelete, setPendingDelete] = useState<{ kind: 'tx' | 'balance'; id: string; label: string } | null>(null);
-
+export function AssetDetailSheet({ holding, open, onOpenChange, onAction, onEditTransaction, onDeleteTransaction, onDeleteBalance, dayLabel = 'oggi' }: AssetDetailSheetProps) {
   if (!holding) return null;
   const { asset } = holding;
   const meta = typeMeta(asset.type);
@@ -87,10 +87,17 @@ export function AssetDetailSheet({ holding, open, onOpenChange, onAction, onEdit
             <div className="grid grid-cols-2 gap-2">
               <Metric label="Quantità">{formatNumber(holding.quantity ?? 0)}</Metric>
               <Metric label="Peso sul patrimonio"><span className="tabular">{formatPercent(holding.weight, { signed: false, digits: 1 })}</span></Metric>
-              <Metric label="Prezzo attuale">{holding.price !== undefined ? <Money value={holding.price} currency={asset.currency} /> : '—'}</Metric>
+              <Metric label="Prezzo attuale">
+                {holding.price !== undefined ? <Money value={holding.price} currency={asset.currency} /> : '—'}
+                {asset.lastUpdated && (
+                  <p className={cn('text-xs font-normal', isStale(asset) ? 'text-cat-4' : 'text-muted-foreground')}>
+                    {isStale(asset) ? 'non aggiornato, ' : ''}del {fmtDate(asset.lastUpdated, 'd MMM, HH:mm')}
+                  </p>
+                )}
+              </Metric>
               <Metric label="Prezzo medio di carico"><Money value={holding.avgPrice ?? 0} currency={asset.currency} /></Metric>
               <Metric label="Investito"><Money value={holding.costBasis ?? 0} currency={asset.currency} /></Metric>
-              <Metric label="Oggi">{holding.dayChangePct !== undefined ? <Trend pct={holding.dayChangePct} /> : '—'}</Metric>
+              <Metric label={dayLabel === 'oggi' ? 'Oggi' : 'Ultima seduta'}>{holding.dayChangePct !== undefined ? <Trend pct={holding.dayChangePct} /> : '—'}</Metric>
               {Math.abs(holding.realized ?? 0) > 0.005 && (
                 <Metric label="Plus/minus realizzate" className="col-span-2"><Trend value={holding.realized} currency={asset.currency} /></Metric>
               )}
@@ -107,7 +114,7 @@ export function AssetDetailSheet({ holding, open, onOpenChange, onAction, onEdit
               </div>
               {holding.deposit.progress !== null && <Progress value={holding.deposit.progress * 100} className="h-1.5" aria-label="Avanzamento del vincolo" />}
               <div className="flex items-baseline justify-between text-sm">
-                <span className="text-muted-foreground">Interessi netti maturati</span>
+                <span className="flex items-center gap-1 text-muted-foreground">Interessi netti maturati <InfoHint text={HINTS.accrued} /></span>
                 <Money value={holding.deposit.accruedNet} currency={asset.currency} signed className="font-medium text-positive" />
               </div>
               {holding.deposit.atMaturityNet !== null && (
@@ -153,7 +160,7 @@ export function AssetDetailSheet({ holding, open, onOpenChange, onAction, onEdit
                         variant="ghost"
                         size="icon-sm"
                         aria-label="Elimina operazione"
-                        onClick={() => setPendingDelete({ kind: 'tx', id: tx.id, label: `${tx.type === 'buy' ? "l'acquisto" : 'la vendita'} del ${fmtDate(tx.date)}` })}
+                        onClick={() => onDeleteTransaction(asset.id, tx.id)}
                       >
                         <X />
                       </Button>
@@ -176,7 +183,7 @@ export function AssetDetailSheet({ holding, open, onOpenChange, onAction, onEdit
                       size="icon-sm"
                       aria-label="Elimina saldo"
                       disabled={balances.length <= 1}
-                      onClick={() => setPendingDelete({ kind: 'balance', id: b.date, label: `il saldo del ${fmtDate(b.date)}` })}
+                      onClick={() => onDeleteBalance(asset.id, b.date)}
                     >
                       <X />
                     </Button>
@@ -187,19 +194,6 @@ export function AssetDetailSheet({ holding, open, onOpenChange, onAction, onEdit
           )}
         </div>
       </SheetContent>
-
-      <ConfirmDialog
-        open={!!pendingDelete}
-        onOpenChange={o => !o && setPendingDelete(null)}
-        title="Eliminare questa voce?"
-        description={pendingDelete ? `Stai per eliminare ${pendingDelete.label}. I valori verranno ricalcolati.` : ''}
-        onConfirm={() => {
-          if (!pendingDelete) return;
-          if (pendingDelete.kind === 'tx') onDeleteTransaction(asset.id, pendingDelete.id);
-          else onDeleteBalance(asset.id, pendingDelete.id);
-          setPendingDelete(null);
-        }}
-      />
     </Sheet>
   );
 }
