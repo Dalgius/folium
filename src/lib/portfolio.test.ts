@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Asset } from '@/types';
 import {
+  allocationBy,
   balanceAt,
   buildHistory,
   buildHoldings,
@@ -174,6 +175,30 @@ describe('buildHoldings / summarize', () => {
     );
     expect(summary.netWorth).toBe(0);
     expect(summary.missingFx).toEqual(['CHF']);
+  });
+});
+
+describe('allocationBy', () => {
+  it('ripartisce i soli investimenti per categoria e per classe', () => {
+    const holdings = buildHoldings([
+      etf(),
+      etf({ id: 'bond', name: 'Vanguard Global Aggregate Bond', lastPrice: 100 }),
+      { ...etf({ id: 'btc', name: 'Bitcoin', type: 'Crypto', lastPrice: 50 }) },
+      { id: 'cc', name: 'Conto', type: 'Conto Bancario', currency: 'EUR', initialValue: 0, currentValue: 0, balanceHistory: [{ date: '2024-01-01', value: 10000 }] },
+    ], {});
+    const investments = holdings.filter(h => h.group === 'investments');
+
+    const byType = allocationBy(investments, 'type');
+    expect(byType.map(s => s.key)).toEqual(['ETF', 'Crypto']);
+    expect(byType[0].value).toBeCloseTo(2600 + 2000);
+    expect(byType.reduce((sum, s) => sum + s.share, 0)).toBeCloseTo(1);
+
+    const byClass = allocationBy(investments, 'class');
+    expect(byClass.map(s => s.key)).toEqual(['azionario', 'obbligazionario', 'crypto']);
+    expect(byClass[0].share).toBeCloseTo(2600 / 5600);
+
+    // Sull'intero patrimonio il conto corrente entra come liquidità
+    expect(allocationBy(holdings, 'class')[0].key).toBe('liquidita');
   });
 });
 
