@@ -14,6 +14,9 @@ export type AssetType =
 
 export type Currency = string;
 
+/** Classe di attivo, usata per l'allocazione per rischio */
+export type AssetClass = 'azionario' | 'obbligazionario' | 'liquidita' | 'materie-prime' | 'immobiliare' | 'altro' | 'crypto';
+
 export type TransactionType = 'buy' | 'sell';
 
 /** Un'operazione di acquisto o vendita su un titolo. */
@@ -45,6 +48,9 @@ export interface Asset {
   /** Banca, broker o intermediario */
   institution?: string;
   notes?: string;
+
+  /** Classe di attivo scelta a mano; se manca viene proposta in automatico */
+  assetClass?: AssetClass;
 
   // --- Titoli quotati -------------------------------------------------------
   ticker?: string;

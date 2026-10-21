@@ -163,6 +163,8 @@ describe('buildHoldings / summarize', () => {
     expect(summary.investedCost).toBeCloseTo(2202 + 900);
     expect(summary.dayChange).toBeCloseTo(20);
     expect(summary.allocation[0].type).toBe('Conto Bancario');
+    expect(summary.classAllocation.map(c => c.assetClass)).toEqual(['liquidita', 'azionario']);
+    expect(summary.classAllocation[1].value).toBeCloseTo(2600 + 990);
     expect(holdings.reduce((s, h) => s + h.weight, 0)).toBeCloseTo(1);
   });
 

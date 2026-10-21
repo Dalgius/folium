@@ -49,6 +49,7 @@ function fromFirestore(snap: QueryDocumentSnapshot<DocumentData>): Asset {
     userId: data.userId,
     institution: data.institution,
     notes: data.notes,
+    assetClass: data.assetClass,
     ticker: data.ticker,
     lastPrice: data.lastPrice,
     dailyChange: data.dailyChange,
