@@ -80,6 +80,21 @@ export function computePosition(transactions: Transaction[] = [], upTo?: string)
   };
 }
 
+/**
+ * Vendite che, in ordine cronologico, superano le quote possedute in quel momento
+ * (per esempio dopo aver spostato la data di un acquisto più avanti di una vendita).
+ */
+export function invalidSellIds(transactions: Transaction[] = []): string[] {
+  let quantity = 0;
+  const invalid: string[] = [];
+  for (const tx of sortTransactions(transactions)) {
+    if (tx.type === 'buy') quantity += tx.quantity;
+    else if (tx.quantity > quantity + 1e-9) invalid.push(tx.id);
+    else quantity -= tx.quantity;
+  }
+  return invalid;
+}
+
 /** Ultimo prezzo unitario noto per un titolo. */
 export function lastPrice(asset: Asset): number | undefined {
   if (asset.lastPrice && asset.lastPrice > 0) return asset.lastPrice;

@@ -158,10 +158,26 @@ export async function addAsset(asset: NewAsset): Promise<Asset> {
 /** Salva l'asset completo (dopo modifiche a operazioni, saldi o dettagli). */
 export async function saveAsset(asset: Asset): Promise<Asset> {
   const data = withDerivedFields(asset);
-  // I campi svuotati (undefined) vengono rimossi dal documento
-  const update = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v === undefined ? deleteField() : v]));
-  await updateDoc(doc(db, COLLECTION, asset.id), update);
+  await updateDoc(doc(db, COLLECTION, asset.id), toUpdate(data));
   return { ...asset, ...pickDerived(data) };
+}
+
+/** I campi svuotati (undefined) vengono rimossi dal documento. */
+function toUpdate(data: DocumentData): DocumentData {
+  return Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v === undefined ? deleteField() : v]));
+}
+
+/** Salva più asset con una sola scrittura atomica (correzioni e aggiornamenti in blocco). */
+export async function saveAssets(assets: Asset[]): Promise<Asset[]> {
+  if (assets.length === 0) return [];
+  const batch = writeBatch(db);
+  const saved = assets.map(asset => {
+    const data = withDerivedFields(asset);
+    batch.update(doc(db, COLLECTION, asset.id), toUpdate(data));
+    return { ...asset, ...pickDerived(data) };
+  });
+  await batch.commit();
+  return saved;
 }
 
 export async function deleteAsset(id: string): Promise<void> {

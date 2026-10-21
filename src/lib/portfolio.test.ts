@@ -8,6 +8,7 @@ import {
   computePosition,
   dayChangeLabel,
   depositInterest,
+  invalidSellIds,
   isStale,
   periodReturn,
   summarize,
@@ -73,6 +74,19 @@ describe('computePosition', () => {
     expect(p.quantity).toBe(0);
     expect(p.costBasis).toBe(0);
     expect(p.realized).toBe(6);
+  });
+});
+
+describe('invalidSellIds', () => {
+  it('segnala le vendite che superano le quote possedute in quel momento', () => {
+    const txs = [
+      { id: 'b1', type: 'buy' as const, date: '2024-03-01', quantity: 10, price: 100 },
+      { id: 's1', type: 'sell' as const, date: '2024-02-01', quantity: 5, price: 110 },
+      { id: 's2', type: 'sell' as const, date: '2024-04-01', quantity: 10, price: 120 },
+    ];
+    expect(invalidSellIds(txs)).toEqual(['s1']);
+    expect(invalidSellIds([txs[0], { ...txs[1], date: '2024-03-15' }])).toEqual([]);
+    expect(invalidSellIds([txs[0], { ...txs[2], quantity: 11 }])).toEqual(['s2']);
   });
 });
 
