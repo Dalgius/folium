@@ -1,9 +1,9 @@
 'use client';
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { format, parseISO } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { ArrowLeftRight, CalendarDays, MoreHorizontal, Pencil, PencilLine, Search, SearchX, Trash2, Wallet, Clock } from 'lucide-react';
+import { ArrowLeftRight, CalendarDays, ChevronDown, MoreHorizontal, Pencil, PencilLine, Search, SearchX, Trash2, Wallet, Clock } from 'lucide-react';
 import type { Holding } from '@/lib/portfolio';
 import { GROUP_LABEL, typeMeta, type AssetGroup } from '@/lib/asset-types';
 import { isStale, latestBalance, sortBalances } from '@/lib/portfolio';
@@ -57,6 +57,8 @@ function performanceOf(h: Holding): number {
   return h.group === 'other' ? manualChange(h)?.pct ?? 0 : 0;
 }
 
+const COLLAPSED_KEY = 'folium:collapsed-groups';
+
 interface HoldingsListProps {
   holdings: Holding[];
   loading: boolean;
@@ -101,6 +103,27 @@ export function HoldingsList({ holdings, loading, onAction, onBulkAction, dayLab
       })
       .filter(g => g.items.length > 0);
   }, [holdings, activeFilter, sort, search]);
+
+  // Gruppi chiusi, ricordati nel browser
+  const [collapsed, setCollapsed] = useState<AssetGroup[]>([]);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? '[]');
+      if (Array.isArray(saved)) setCollapsed(saved);
+    } catch {
+      // archiviazione non disponibile: tutti i gruppi aperti
+    }
+  }, []);
+  const toggleGroup = (group: AssetGroup) =>
+    setCollapsed(current => {
+      const next = current.includes(group) ? current.filter(g => g !== group) : [...current, group];
+      try {
+        localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next));
+      } catch {
+        // ignorato
+      }
+      return next;
+    });
 
   return (
     <Card className="overflow-hidden">
@@ -157,7 +180,17 @@ export function HoldingsList({ holdings, loading, onAction, onBulkAction, dayLab
           {groups.map(({ group, items, total }) => (
             <div key={group} role="rowgroup">
               <div className="flex items-center justify-between gap-3 border-b bg-muted/20 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:px-5">
-                <span>{GROUP_LABEL[group]}</span>
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group)}
+                  aria-expanded={!collapsed.includes(group) || !!search}
+                  aria-controls={`group-${group}`}
+                  className="-ml-1 flex h-8 items-center gap-1.5 rounded-md px-1 uppercase tracking-wide hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <ChevronDown className={cn('h-4 w-4 transition-transform', collapsed.includes(group) && !search && '-rotate-90')} aria-hidden />
+                  {GROUP_LABEL[group]}
+                  <span className="font-normal normal-case tracking-normal">({items.length})</span>
+                </button>
                 <div className="flex items-center gap-3">
                   {onBulkAction && (
                     <Button
@@ -172,7 +205,8 @@ export function HoldingsList({ holdings, loading, onAction, onBulkAction, dayLab
                   <Money value={total} className="normal-case tracking-normal" />
                 </div>
               </div>
-              <ul className="divide-y">
+              {/* Durante una ricerca i gruppi chiusi si riaprono, per non nascondere i risultati */}
+              <ul id={`group-${group}`} className="divide-y" hidden={collapsed.includes(group) && !search}>
                 {items.map(h => <HoldingRow key={h.asset.id} holding={h} onAction={onAction} />)}
               </ul>
             </div>

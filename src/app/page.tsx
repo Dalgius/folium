@@ -4,13 +4,18 @@ import { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { usePortfolio } from '@/hooks/use-portfolio';
+import { useTab } from '@/hooks/use-tab';
 import { isMarketAsset } from '@/lib/asset-types';
 import { dayChangeLabel, isStale } from '@/lib/portfolio';
 import { AppHeader } from '@/components/dashboard/app-header';
+import { AppNav } from '@/components/dashboard/app-nav';
+import { MovementsList } from '@/components/dashboard/movements-list';
+import { SettingsPanel } from '@/components/dashboard/settings-panel';
 import { StatCards } from '@/components/dashboard/stat-cards';
 import { PerformanceChart } from '@/components/dashboard/performance-chart';
 import { AllocationCard } from '@/components/dashboard/allocation-card';
 import { MaturitiesCard } from '@/components/dashboard/maturities-card';
+import { TopHoldingsCard } from '@/components/dashboard/top-holdings-card';
 import { HoldingsList, type HoldingAction } from '@/components/dashboard/holdings-list';
 import { AssetDetailSheet } from '@/components/dashboard/asset-detail-sheet';
 import { EmptyState } from '@/components/dashboard/empty-state';
@@ -19,8 +24,16 @@ import { TransactionDialog } from '@/components/forms/transaction-dialog';
 import { BalanceDialog } from '@/components/forms/balance-dialog';
 import { EditAssetDialog } from '@/components/forms/edit-asset-dialog';
 import { ConfirmDialog } from '@/components/forms/confirm-dialog';
+import { cn } from '@/lib/utils';
 import { BalancesDialog } from '@/components/forms/balances-dialog';
 import { TransactionDatesDialog } from '@/components/forms/transaction-dates-dialog';
+
+const TITLES = {
+  panoramica: 'Il tuo patrimonio',
+  posizioni: 'Posizioni',
+  movimenti: 'Movimenti',
+  impostazioni: 'Impostazioni',
+} as const;
 
 type DialogState =
   | { kind: 'add'; initial?: AddKind }
@@ -34,6 +47,7 @@ export default function Dashboard() {
   const { assets, holdings, summary, fx, loading } = portfolio;
   const [dialog, setDialog] = useState<DialogState>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [tab, setTab] = useTab();
 
   const dialogAsset = dialog && 'assetId' in dialog ? assets.find(a => a.id === dialog.assetId) ?? null : null;
   const selected = holdings.find(h => h.asset.id === selectedId) ?? null;
@@ -57,33 +71,22 @@ export default function Dashboard() {
         onAdd={() => setDialog({ kind: 'add' })}
         canRefresh={assets.length > 0}
         staleCount={loading ? 0 : staleCount}
+        onSettings={() => setTab('impostazioni')}
       />
+      <AppNav tab={tab} onChange={setTab} />
 
-      <main className="container mx-auto space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-        <h1 className="text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">Il tuo patrimonio</span> · {format(new Date(), 'EEEE d MMMM', { locale: it })}
+      <main className="container mx-auto px-4 pb-24 pt-6 sm:px-6 sm:pb-8 lg:px-8 lg:pt-8">
+        {/* Nelle altre schede il titolo è già nella card: resta solo per i lettori di schermo */}
+        <h1 className={cn('mb-6 text-sm text-muted-foreground', tab !== 'panoramica' && 'sr-only')}>
+          <span className="font-medium text-foreground">{TITLES[tab]}</span> · {format(new Date(), 'EEEE d MMMM', { locale: it })}
         </h1>
 
-        {!loading && assets.length === 0 ? (
-          <EmptyState onAdd={initial => setDialog({ kind: 'add', initial })} />
-        ) : (
-          <>
-            <StatCards summary={summary} loading={loading} dayLabel={dayLabel} />
-
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-              <div className="lg:col-span-2">
-                {loading ? (
-                  <div className="h-[420px] animate-pulse rounded-xl border bg-card" />
-                ) : (
-                  <PerformanceChart assets={assets} fx={fx} hasInvestments={hasInvestments} />
-                )}
-              </div>
-              <div className="space-y-6">
-                <AllocationCard summary={summary} loading={loading} />
-                <MaturitiesCard holdings={holdings} onSelect={setSelectedId} />
-              </div>
-            </div>
-
+        <div className="space-y-6">
+          {tab === 'impostazioni' ? (
+            <SettingsPanel assets={assets} />
+          ) : !loading && assets.length === 0 ? (
+            <EmptyState onAdd={initial => setDialog({ kind: 'add', initial })} />
+          ) : tab === 'posizioni' ? (
             <HoldingsList
               holdings={holdings}
               loading={loading}
@@ -91,8 +94,31 @@ export default function Dashboard() {
               onBulkAction={kind => setDialog({ kind })}
               dayLabel={dayLabel}
             />
-          </>
-        )}
+          ) : tab === 'movimenti' ? (
+            <MovementsList assets={assets} loading={loading} onSelect={setSelectedId} />
+          ) : (
+            <>
+              <StatCards summary={summary} loading={loading} dayLabel={dayLabel} />
+
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                <div className="lg:col-span-2">
+                  {loading ? (
+                    <div className="h-[420px] animate-pulse rounded-xl border bg-card" />
+                  ) : (
+                    <PerformanceChart assets={assets} fx={fx} hasInvestments={hasInvestments} />
+                  )}
+                </div>
+                <AllocationCard summary={summary} loading={loading} />
+                {!loading && (
+                  <div className="lg:col-span-2">
+                    <TopHoldingsCard holdings={holdings} onSelect={setSelectedId} onShowAll={() => setTab('posizioni')} dayLabel={dayLabel} />
+                  </div>
+                )}
+                <MaturitiesCard holdings={holdings} onSelect={setSelectedId} />
+              </div>
+            </>
+          )}
+        </div>
       </main>
 
       <AddAssetDialog

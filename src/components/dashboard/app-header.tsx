@@ -2,10 +2,9 @@
 
 import Image from 'next/image';
 import { signOut } from 'firebase/auth';
-import { useTheme } from 'next-themes';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { Clock, Eye, EyeOff, LogOut, Monitor, Moon, Plus, RefreshCw, Sun } from 'lucide-react';
+import { Clock, Eye, EyeOff, LogOut, Plus, RefreshCw, Settings } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { useAuth } from '@/hooks/use-auth';
 import { usePrivacy } from '@/hooks/use-privacy';
@@ -16,8 +15,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -32,12 +29,12 @@ interface AppHeaderProps {
   canRefresh: boolean;
   /** Titoli con prezzo non aggiornato */
   staleCount?: number;
+  onSettings: () => void;
 }
 
-export function AppHeader({ refreshing, lastRefresh, onRefresh, onAdd, canRefresh, staleCount = 0 }: AppHeaderProps) {
+export function AppHeader({ refreshing, lastRefresh, onRefresh, onAdd, canRefresh, staleCount = 0, onSettings }: AppHeaderProps) {
   const { user } = useAuth();
   const { hidden, toggle } = usePrivacy();
-  const { theme, setTheme } = useTheme();
   const initial = user?.email?.[0]?.toUpperCase() ?? '?';
 
   return (
@@ -110,13 +107,9 @@ export function AppHeader({ refreshing, lastRefresh, onRefresh, onAdd, canRefres
                   <p className="truncate text-sm font-medium">{user?.email}</p>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Tema</DropdownMenuLabel>
-                <DropdownMenuRadioGroup value={theme ?? 'system'} onValueChange={setTheme}>
-                  <DropdownMenuRadioItem value="light"><Sun className="mr-2 h-4 w-4" /> Chiaro</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="dark"><Moon className="mr-2 h-4 w-4" /> Scuro</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="system"><Monitor className="mr-2 h-4 w-4" /> Sistema</DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={onSettings}>
+                  <Settings className="mr-2 h-4 w-4" /> Impostazioni
+                </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => signOut(auth)}>
                   <LogOut className="mr-2 h-4 w-4" /> Esci
                 </DropdownMenuItem>
