@@ -108,7 +108,7 @@ export default function Dashboard() {
                     <PerformanceChart assets={assets} fx={fx} hasInvestments={hasInvestments} />
                   )}
                 </div>
-                <AllocationCard summary={summary} loading={loading} />
+                <AllocationCard holdings={holdings} loading={loading} />
                 {!loading && (
                   <div className="lg:col-span-2">
                     <TopHoldingsCard holdings={holdings} onSelect={setSelectedId} onShowAll={() => setTab('posizioni')} dayLabel={dayLabel} />

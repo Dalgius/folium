@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PieChart } from 'lucide-react';
-import type { PortfolioSummary } from '@/lib/portfolio';
+import { allocationBy, type Holding } from '@/lib/portfolio';
 import { typeMeta } from '@/lib/asset-types';
 import { classMeta } from '@/lib/asset-classes';
 import { Segmented } from '@/components/segmented';
@@ -13,49 +13,71 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { formatPercent } from '@/lib/utils';
 
 type View = 'type' | 'class';
+type Scope = 'all' | 'investments';
 
 const VIEWS: { value: View; label: string }[] = [
   { value: 'type', label: 'Categoria' },
   { value: 'class', label: 'Classe' },
 ];
 
-const STORAGE_KEY = 'folium:allocation';
+const SCOPES: { value: Scope; label: string }[] = [
+  { value: 'all', label: 'Patrimonio' },
+  { value: 'investments', label: 'Investimenti' },
+];
 
-export function AllocationCard({ summary, loading }: { summary: PortfolioSummary; loading: boolean }) {
-  const [view, setViewState] = useState<View>('type');
+const VIEW_KEY = 'folium:allocation';
+const SCOPE_KEY = 'folium:allocation-scope';
 
-  // Letto dopo il montaggio per non creare differenze con il rendering sul server
+/** Preferenza salvata nel browser, letta dopo il montaggio per non creare differenze con il rendering sul server. */
+function useStoredChoice<T extends string>(key: string, initial: T, allowed: readonly T[]): [T, (value: T) => void] {
+  const [value, setValue] = useState<T>(initial);
   useEffect(() => {
     try {
-      if (localStorage.getItem(STORAGE_KEY) === 'class') setViewState('class');
+      const saved = localStorage.getItem(key) as T | null;
+      if (saved && allowed.includes(saved)) setValue(saved);
     } catch {
-      // archiviazione non disponibile: si resta sulla vista per categoria
+      // archiviazione non disponibile: si usa il valore predefinito
     }
-  }, []);
-  const setView = (value: View) => {
-    setViewState(value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  const set = (next: T) => {
+    setValue(next);
     try {
-      localStorage.setItem(STORAGE_KEY, value);
+      localStorage.setItem(key, next);
     } catch {
       // ignorato
     }
   };
+  return [value, set];
+}
+
+export function AllocationCard({ holdings, loading }: { holdings: Holding[]; loading: boolean }) {
+  const [view, setView] = useStoredChoice<View>(VIEW_KEY, 'type', ['type', 'class']);
+  const [savedScope, setScope] = useStoredChoice<Scope>(SCOPE_KEY, 'all', ['all', 'investments']);
+  const hasInvestments = holdings.some(h => h.group === 'investments');
+  const scope: Scope = hasInvestments ? savedScope : 'all';
 
   // Stessa forma per le due viste: chiave, etichetta, colore
-  const allocation = view === 'type'
-    ? summary.allocation.map(s => ({ key: s.type, label: typeMeta(s.type).plural, color: typeMeta(s.type).color, value: s.value, share: s.share }))
-    : summary.classAllocation.map(s => ({ key: s.assetClass, label: classMeta(s.assetClass).label, color: classMeta(s.assetClass).color, value: s.value, share: s.share }));
+  const { allocation, total } = useMemo(() => {
+    const scoped = scope === 'investments' ? holdings.filter(h => h.group === 'investments') : holdings;
+    const allocation = view === 'type'
+      ? allocationBy(scoped, 'type').map(s => ({ ...s, label: typeMeta(s.key).plural, color: typeMeta(s.key).color }))
+      : allocationBy(scoped, 'class').map(s => ({ ...s, label: classMeta(s.key).label, color: classMeta(s.key).color }));
+    return { allocation, total: allocation.reduce((sum, s) => sum + s.value, 0) };
+  }, [holdings, scope, view]);
+
+  const subject = scope === 'investments' ? 'Investimenti' : 'Patrimonio';
 
   return (
     <Card className="p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold">Allocazione</h2>
-          <p className="text-sm text-muted-foreground">
-            {view === 'type' ? 'Ripartizione del patrimonio per categoria' : 'Ripartizione per classe di attivo'}
-          </p>
-        </div>
-        <Segmented options={VIEWS} value={view} onChange={setView} size="sm" ariaLabel="Raggruppa per" className="shrink-0" />
+      <h2 className="text-base font-semibold">Allocazione</h2>
+      <p className="text-sm text-muted-foreground">
+        {subject} per {view === 'type' ? 'categoria' : 'classe di attivo'}
+        {!loading && total > 0 && <> · su <Money value={total} /></>}
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {hasInvestments && <Segmented options={SCOPES} value={scope} onChange={setScope} size="sm" ariaLabel="Ambito" />}
+        <Segmented options={VIEWS} value={view} onChange={setView} size="sm" ariaLabel="Raggruppa per" />
       </div>
 
       {loading ? (

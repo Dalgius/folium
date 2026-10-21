@@ -289,6 +289,42 @@ export interface ClassSlice {
   count: number;
 }
 
+export interface Slice<K extends string> {
+  key: K;
+  value: number;
+  share: number;
+  count: number;
+}
+
+/**
+ * Ripartizione per categoria o per classe di attivo, dalla voce più grande.
+ * Le quote sono calcolate sul totale positivo degli holding passati
+ * (tutto il patrimonio o, filtrando prima, i soli investimenti).
+ */
+export function allocationBy(holdings: Holding[], by: 'type'): Slice<AssetType>[];
+export function allocationBy(holdings: Holding[], by: 'class'): Slice<AssetClass>[];
+export function allocationBy(holdings: Holding[], by: 'type' | 'class'): Slice<string>[] {
+  const groups = new Map<string, { value: number; count: number }>();
+  for (const h of holdings) {
+    if (h.valueEur === null || h.fx === null) continue;
+    const key = by === 'type' ? h.asset.type : assetClassOf(h.asset);
+    const slot = groups.get(key) ?? { value: 0, count: 0 };
+    slot.value += h.valueEur;
+    slot.count += 1;
+    groups.set(key, slot);
+  }
+  const order: string[] = by === 'type' ? ASSET_TYPES : ASSET_CLASSES;
+  const positive = Array.from(groups.values()).reduce((s, v) => s + Math.max(0, v.value), 0);
+  return order
+    .filter(key => groups.has(key))
+    .map(key => {
+      const { value, count } = groups.get(key)!;
+      return { key, value, count, share: positive > 0 ? Math.max(0, value) / positive : 0 };
+    })
+    .filter(s => s.value > 0)
+    .sort((a, b) => b.value - a.value);
+}
+
 export interface PortfolioSummary {
   netWorth: number;
   liquidity: number;
@@ -319,8 +355,6 @@ export function summarize(holdings: Holding[], today: string = todayKey()): Port
   let nextUnlock: string | null = null;
   let hasDayChange = false;
   const missingFx = new Set<string>();
-  const byType = new Map<AssetType, { value: number; count: number }>();
-  const byClass = new Map<AssetClass, { value: number; count: number }>();
 
   for (const h of holdings) {
     if (h.valueEur === null || h.fx === null) {
@@ -343,35 +377,11 @@ export function summarize(holdings: Holding[], today: string = todayKey()): Port
       lockedLiquidity += h.valueEur;
       if (!nextUnlock || maturity < nextUnlock) nextUnlock = maturity;
     }
-
-    const slot = byType.get(h.asset.type) ?? { value: 0, count: 0 };
-    slot.value += h.valueEur;
-    slot.count += 1;
-    byType.set(h.asset.type, slot);
-
-    const assetClass = assetClassOf(h.asset);
-    const classSlot = byClass.get(assetClass) ?? { value: 0, count: 0 };
-    classSlot.value += h.valueEur;
-    classSlot.count += 1;
-    byClass.set(assetClass, classSlot);
   }
 
   const netWorth = liquidity + investments + other;
-  const positive = Array.from(byType.values()).reduce((s, v) => s + Math.max(0, v.value), 0);
-  const allocation = ASSET_TYPES.filter(t => byType.has(t))
-    .map(type => {
-      const { value, count } = byType.get(type)!;
-      return { type, value, count, share: positive > 0 ? Math.max(0, value) / positive : 0 };
-    })
-    .filter(s => s.value > 0)
-    .sort((a, b) => b.value - a.value);
-  const classAllocation = ASSET_CLASSES.filter(c => byClass.has(c))
-    .map(assetClass => {
-      const { value, count } = byClass.get(assetClass)!;
-      return { assetClass, value, count, share: positive > 0 ? Math.max(0, value) / positive : 0 };
-    })
-    .filter(s => s.value > 0)
-    .sort((a, b) => b.value - a.value);
+  const allocation = allocationBy(holdings, 'type').map(({ key, ...rest }) => ({ type: key, ...rest }));
+  const classAllocation = allocationBy(holdings, 'class').map(({ key, ...rest }) => ({ assetClass: key, ...rest }));
 
   const unrealizedPL = investments - investedCost;
   const previousInvestments = investments - dayChange;
