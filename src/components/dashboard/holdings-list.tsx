@@ -3,7 +3,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { format, parseISO } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { ArrowLeftRight, MoreHorizontal, Pencil, Search, SearchX, Trash2, Wallet, Clock } from 'lucide-react';
+import { ArrowLeftRight, CalendarDays, MoreHorizontal, Pencil, PencilLine, Search, SearchX, Trash2, Wallet, Clock } from 'lucide-react';
 import type { Holding } from '@/lib/portfolio';
 import { GROUP_LABEL, typeMeta, type AssetGroup } from '@/lib/asset-types';
 import { isStale, latestBalance, sortBalances } from '@/lib/portfolio';
@@ -61,11 +61,13 @@ interface HoldingsListProps {
   holdings: Holding[];
   loading: boolean;
   onAction: (action: HoldingAction, assetId: string) => void;
+  /** Azioni su tutto un gruppo: aggiornamento dei saldi o correzione delle date */
+  onBulkAction?: (kind: 'balances' | 'dates') => void;
   /** "oggi" o "ultima seduta" */
   dayLabel?: string;
 }
 
-export function HoldingsList({ holdings, loading, onAction, dayLabel = 'oggi' }: HoldingsListProps) {
+export function HoldingsList({ holdings, loading, onAction, onBulkAction, dayLabel = 'oggi' }: HoldingsListProps) {
   const [filter, setFilter] = useState<Filter>('all');
   const [sort, setSort] = useState<Sort>('value');
   const [search, setSearch] = useState('');
@@ -154,9 +156,21 @@ export function HoldingsList({ holdings, loading, onAction, dayLabel = 'oggi' }:
           </div>
           {groups.map(({ group, items, total }) => (
             <div key={group} role="rowgroup">
-              <div className="flex items-center justify-between border-b bg-muted/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:px-5">
+              <div className="flex items-center justify-between gap-3 border-b bg-muted/20 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:px-5">
                 <span>{GROUP_LABEL[group]}</span>
-                <Money value={total} className="normal-case tracking-normal" />
+                <div className="flex items-center gap-3">
+                  {onBulkAction && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 text-xs normal-case tracking-normal text-primary hover:text-primary"
+                      onClick={() => onBulkAction(group === 'investments' ? 'dates' : 'balances')}
+                    >
+                      {group === 'investments' ? <><CalendarDays /> Correggi date</> : <><PencilLine /> {group === 'other' ? 'Aggiorna valori' : 'Aggiorna saldi'}</>}
+                    </Button>
+                  )}
+                  <Money value={total} className="normal-case tracking-normal" />
+                </div>
               </div>
               <ul className="divide-y">
                 {items.map(h => <HoldingRow key={h.asset.id} holding={h} onAction={onAction} />)}

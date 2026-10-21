@@ -19,11 +19,14 @@ import { TransactionDialog } from '@/components/forms/transaction-dialog';
 import { BalanceDialog } from '@/components/forms/balance-dialog';
 import { EditAssetDialog } from '@/components/forms/edit-asset-dialog';
 import { ConfirmDialog } from '@/components/forms/confirm-dialog';
+import { BalancesDialog } from '@/components/forms/balances-dialog';
+import { TransactionDatesDialog } from '@/components/forms/transaction-dates-dialog';
 
 type DialogState =
   | { kind: 'add'; initial?: AddKind }
   | { kind: 'transaction'; assetId: string; txId?: string }
   | { kind: 'balance' | 'edit' | 'delete'; assetId: string }
+  | { kind: 'balances' | 'dates' }
   | null;
 
 export default function Dashboard() {
@@ -81,7 +84,13 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <HoldingsList holdings={holdings} loading={loading} onAction={handleAction} dayLabel={dayLabel} />
+            <HoldingsList
+              holdings={holdings}
+              loading={loading}
+              onAction={handleAction}
+              onBulkAction={kind => setDialog({ kind })}
+              dayLabel={dayLabel}
+            />
           </>
         )}
       </main>
@@ -92,7 +101,7 @@ export default function Dashboard() {
         initialKind={dialog?.kind === 'add' ? dialog.initial : null}
         assets={assets}
         onCreate={portfolio.create}
-        onImport={portfolio.importPositions}
+        onImport={items => portfolio.importPositions(items, { onFixDates: () => setDialog({ kind: 'dates' }) })}
       />
       <TransactionDialog
         asset={dialogAsset}
@@ -102,12 +111,14 @@ export default function Dashboard() {
         onSubmit={(assetId, tx, txId) => (txId ? portfolio.updateTransaction(assetId, txId, tx) : portfolio.addTransaction(assetId, tx))}
       />
       <BalanceDialog asset={dialogAsset} open={dialog?.kind === 'balance'} onOpenChange={closeDialog} onSubmit={portfolio.setBalance} />
+      <BalancesDialog assets={assets} open={dialog?.kind === 'balances'} onOpenChange={closeDialog} onSubmit={portfolio.setBalances} />
+      <TransactionDatesDialog assets={assets} open={dialog?.kind === 'dates'} onOpenChange={closeDialog} onSubmit={portfolio.updateTransactionDates} />
       <EditAssetDialog asset={dialogAsset} open={dialog?.kind === 'edit'} onOpenChange={closeDialog} onSubmit={portfolio.updateDetails} />
       <ConfirmDialog
         open={dialog?.kind === 'delete'}
         onOpenChange={closeDialog}
         title={`Eliminare ${dialogAsset?.name ?? "l'asset"}?`}
-        description="Verranno eliminati anche lo storico delle operazioni e dei saldi. L'azione non può essere annullata."
+        description="Verranno eliminati anche lo storico delle operazioni e dei saldi. Potrai annullare per qualche secondo dal messaggio di conferma."
         onConfirm={async () => {
           if (!dialogAsset) return;
           const id = dialogAsset.id;

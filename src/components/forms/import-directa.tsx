@@ -6,6 +6,7 @@ import type { Asset, AssetType, NewAsset } from '@/types';
 import { assetTypeFromQuoteType, typeMeta } from '@/lib/asset-types';
 import { isDirectaPortfolio, parseDirectaPortfolio, type DirectaPosition } from '@/lib/importers/directa';
 import { todayInput } from '@/lib/forms';
+import { computePosition } from '@/lib/portfolio';
 import { getQuote, matchSecurities, type Quote, type SecurityMatch } from '@/lib/market';
 import { searchSecurities } from '@/services/finance.service';
 import { newId } from '@/services/asset.service';
@@ -28,6 +29,10 @@ interface Row {
   match: SecurityMatch | null;
   checking: boolean;
   include: boolean;
+  /** Data dell'acquisto (yyyy-MM-dd) */
+  date: string;
+  /** Data scelta per questa riga: non segue più la "Data per tutti" */
+  dateEdited: boolean;
 }
 
 export interface ImportItem {
@@ -83,6 +88,19 @@ export function ImportDirecta({ assets, onImport, onBack }: ImportDirectaProps) 
     return map;
   }, [assets]);
 
+  /** Per le posizioni già presenti si parte dalla data del primo acquisto registrato. */
+  const existingDate = (symbol: string): Partial<Row> => {
+    const existing = symbol ? existingBySymbol.get(symbol.toUpperCase()) : undefined;
+    const first = existing ? computePosition(existing.transactions).firstDate : null;
+    return first ? { date: first, dateEdited: true } : {};
+  };
+
+  /** La "Data per tutti" cambia solo le righe in cui la data non è stata scelta a mano. */
+  function changeAllDates(value: string) {
+    setDate(value);
+    if (value) setRows(current => current?.map(r => (r.dateEdited ? r : { ...r, date: value })) ?? null);
+  }
+
   const update = (key: string, patch: Partial<Row>) =>
     setRows(current => current?.map(r => (r.key === key ? { ...r, ...patch } : r)) ?? null);
 
@@ -101,7 +119,8 @@ export function ImportDirecta({ assets, onImport, onBack }: ImportDirectaProps) 
         setError('Nel file non ci sono posizioni da importare.');
         return;
       }
-      if (portfolio.extractedAt && portfolio.extractedAt <= todayInput()) setDate(portfolio.extractedAt);
+      const fileDate = portfolio.extractedAt && portfolio.extractedAt <= todayInput() ? portfolio.extractedAt : todayInput();
+      setDate(fileDate);
 
       const initial: Row[] = portfolio.positions.map((position, i) => ({
         key: `${position.isin || position.ticker}-${i}`,
@@ -110,6 +129,8 @@ export function ImportDirecta({ assets, onImport, onBack }: ImportDirectaProps) 
         match: null,
         checking: true,
         include: false,
+        date: fileDate,
+        dateEdited: false,
       }));
       setRows(initial);
       setMatching(true);
@@ -122,7 +143,7 @@ export function ImportDirecta({ assets, onImport, onBack }: ImportDirectaProps) 
       setRows(initial.map((row, i) => {
         const match = matches[i] ?? null;
         const symbol = match?.symbol ?? '';
-        const next = { ...row, match, symbol, checking: false };
+        const next = { ...row, ...existingDate(symbol), match, symbol, checking: false };
         // Restano escluse, finché l'utente non le seleziona, le posizioni già presenti
         // (verrebbero sostituite) e quelle con un abbinamento dubbio
         return { ...next, include: !!symbol && !existingBySymbol.has(symbol.toUpperCase()) && !rowIssue(next) };
@@ -164,9 +185,11 @@ export function ImportDirecta({ assets, onImport, onBack }: ImportDirectaProps) 
     }
     update(row.key, { symbol, checking: true });
     const quote = await resolveSymbol(symbol, row.position.currency);
+    const resolved = quote?.ticker.toUpperCase() ?? symbol;
     update(row.key, {
+      ...(row.dateEdited ? {} : existingDate(resolved)),
       checking: false,
-      symbol: quote?.ticker.toUpperCase() ?? symbol,
+      symbol: resolved,
       match: quote ? { symbol: quote.ticker, name: quote.name, quoteType: quote.quoteType, price: quote.price, currency: quote.currency, source: 'ticker' } : null,
       include: !!quote,
     });
@@ -182,6 +205,7 @@ export function ImportDirecta({ assets, onImport, onBack }: ImportDirectaProps) 
   const selected = rows?.filter(r => r.include && r.symbol) ?? [];
   const selectedCost = selected.reduce((s, r) => s + r.position.costEur, 0);
   const replacing = selected.filter(r => existingBySymbol.has(r.symbol.toUpperCase())).length;
+  const invalidDates = selected.filter(r => !r.date || r.date > todayInput()).length;
 
   async function submit() {
     if (!selected.length) return;
@@ -198,7 +222,7 @@ export function ImportDirecta({ assets, onImport, onBack }: ImportDirectaProps) 
           ticker: row.symbol,
           currency: position.currency,
           institution: INSTITUTION,
-          transactions: [{ id: newId(), type: 'buy', date, quantity: position.quantity, price: position.avgPrice }],
+          transactions: [{ id: newId(), type: 'buy', date: row.date, quantity: position.quantity, price: position.avgPrice }],
           lastPrice: sameCurrency && match?.price ? match.price : position.price || undefined,
           lastUpdated: new Date().toISOString(),
           initialValue: 0,
@@ -291,6 +315,7 @@ export function ImportDirecta({ assets, onImport, onBack }: ImportDirectaProps) 
         <Info className="h-4 w-4" />
         <AlertDescription>
           Directa non indica le date di acquisto: ogni posizione viene registrata come un unico acquisto al prezzo medio di carico.
+          Inserisci la data del primo acquisto, oppure correggila in seguito da «Correggi date».
           {replacing > 0 && ' Le posizioni già presenti selezionate verranno sostituite con quelle del file.'}
         </AlertDescription>
       </Alert>
@@ -337,6 +362,17 @@ export function ImportDirecta({ assets, onImport, onBack }: ImportDirectaProps) 
                     <CheckCircle2 className="h-3.5 w-3.5 text-positive" aria-label="Abbinato" />
                   ) : null}
                   {existing && <span className="rounded bg-accent px-1.5 py-0.5 font-medium text-accent-foreground">già in portafoglio</span>}
+                  <label className="flex items-center gap-1.5 sm:ml-auto">
+                    <span>acquisto del</span>
+                    <Input
+                      type="date"
+                      value={row.date}
+                      max={todayInput()}
+                      onChange={e => update(row.key, { date: e.target.value, dateEdited: true })}
+                      className={cn('h-7 w-[8.5rem] px-2 text-xs', (!row.date || row.date > todayInput()) && 'border-destructive')}
+                      aria-label={`Data di acquisto di ${row.position.name}`}
+                    />
+                  </label>
                 </div>
                 {issue && !row.checking && (
                   <p className={cn('flex items-center gap-1.5 text-xs', issue.level === 'error' ? 'text-destructive' : 'text-foreground')}>
@@ -352,19 +388,22 @@ export function ImportDirecta({ assets, onImport, onBack }: ImportDirectaProps) 
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1.5">
-          <label htmlFor="import-date" className="text-sm font-medium">Data degli acquisti</label>
-          <Input id="import-date" type="date" value={date} max={todayInput()} onChange={e => setDate(e.target.value)} className="w-44" />
-          <p className="max-w-xs text-xs text-muted-foreground">Nel grafico storico i titoli compaiono da questa data.</p>
+          <label htmlFor="import-date" className="text-sm font-medium">Data per tutti</label>
+          <Input id="import-date" type="date" value={date} max={todayInput()} onChange={e => changeAllDates(e.target.value)} className="w-44" />
+          <p className="max-w-xs text-xs text-muted-foreground">
+            Vale per le righe di cui non hai scelto la data. Nel grafico storico ogni titolo compare dalla sua data di acquisto.
+          </p>
         </div>
         <div className="text-sm sm:text-right">
           <p className="text-muted-foreground">{selected.length} titoli selezionati{replacing > 0 && ` (${replacing} da aggiornare)`}</p>
+          {invalidDates > 0 && <p className="text-destructive">{invalidDates === 1 ? '1 data non valida' : `${invalidDates} date non valide`}</p>}
           <p>valore di carico <Money value={selectedCost} className="font-semibold" /></p>
         </div>
       </div>
 
       <DialogFooter className="gap-2 sm:gap-0">
         {onBack && <Button type="button" variant="ghost" onClick={onBack} disabled={submitting}>Indietro</Button>}
-        <Button type="button" onClick={submit} disabled={!selected.length || matching || submitting || !date}>
+        <Button type="button" onClick={submit} disabled={!selected.length || matching || submitting || invalidDates > 0}>
           {(submitting || matching) && <Loader2 className="animate-spin" />}
           {matching ? 'Ricerca dei titoli…' : `Importa ${selected.length} titoli`}
         </Button>

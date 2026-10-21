@@ -4,7 +4,7 @@ import { createElement, useCallback, useEffect, useMemo, useRef, useState } from
 import type { Asset, BalanceSnapshot, NewAsset, Transaction } from '@/types';
 import { isMarketAsset } from '@/lib/asset-types';
 import { buildHoldings, computePosition, summarize, upsertBalance, type FxRates } from '@/lib/portfolio';
-import { addAsset, deleteAsset, getAssets, newId, saveAsset, savePrices } from '@/services/asset.service';
+import { addAsset, deleteAsset, getAssets, newId, saveAsset, saveAssets, savePrices } from '@/services/asset.service';
 import { getExchangeRates, getQuotes } from '@/lib/market';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
@@ -252,7 +252,7 @@ export function usePortfolio() {
    * esistente viene allineata a quella importata (operazioni sostituite).
    */
   const importPositions = useCallback(
-    async (items: { data: NewAsset; replaceId?: string }[]) => {
+    async (items: { data: NewAsset; replaceId?: string }[], { onFixDates }: { onFixDates?: () => void } = {}) => {
       let imported = 0;
       const failed: string[] = [];
       // Elenco aggiornato localmente: lo stato React si aggiorna solo al render successivo
@@ -279,7 +279,13 @@ export function usePortfolio() {
       if (failed.length) {
         toast({ title: `Importati ${imported} titoli su ${items.length}`, description: `Non riusciti: ${failed.join(', ')}`, variant: 'destructive' });
       } else {
-        toast({ title: `Importati ${imported} titoli` });
+        toast({
+          title: `Importati ${imported} titoli`,
+          description: onFixDates ? 'Puoi correggere le date di acquisto in qualsiasi momento.' : undefined,
+          action: onFixDates
+            ? (createElement(ToastAction, { altText: 'Correggi le date di acquisto', onClick: onFixDates }, 'Correggi date') as unknown as ToastActionElement)
+            : undefined,
+        });
       }
       refreshMarket(list);
       return failed.length === 0;
@@ -361,6 +367,56 @@ export function usePortfolio() {
     [deleteWithUndo],
   );
 
+  /** Salva in blocco più asset modificati, con un solo messaggio finale. */
+  const persistMany = useCallback(
+    async (list: Asset[], success: string, error: string) => {
+      if (list.length === 0) return true;
+      try {
+        const saved = await saveAssets(list);
+        const byId = new Map(saved.map(a => [a.id, a]));
+        setAssets(current => current.map(a => byId.get(a.id) ?? a));
+        toast({ title: success });
+        return true;
+      } catch (e) {
+        fail(error, e);
+        return false;
+      }
+    },
+    [fail, toast],
+  );
+
+  /** Cambia la data di più operazioni, anche di titoli diversi. */
+  const updateTransactionDates = useCallback(
+    async (changes: { assetId: string; txId: string; date: string }[]) => {
+      const byAsset = new Map<string, Map<string, string>>();
+      for (const { assetId, txId, date } of changes) {
+        if (!byAsset.has(assetId)) byAsset.set(assetId, new Map());
+        byAsset.get(assetId)!.set(txId, date);
+      }
+      const list = [...byAsset].flatMap(([assetId, dates]) => {
+        const asset = findAsset(assetId);
+        if (!asset) return [];
+        return [{ ...asset, transactions: (asset.transactions ?? []).map(t => (dates.has(t.id) ? { ...t, date: dates.get(t.id)! } : t)) }];
+      });
+      const n = changes.length;
+      return persistMany(list, n === 1 ? 'Data aggiornata' : `Date aggiornate (${n} operazioni)`, 'Impossibile aggiornare le date.');
+    },
+    [persistMany],
+  );
+
+  /** Registra il saldo di più conti nella stessa data. */
+  const setBalances = useCallback(
+    async (entries: { assetId: string; snapshot: BalanceSnapshot }[]) => {
+      const list = entries.flatMap(({ assetId, snapshot }) => {
+        const asset = findAsset(assetId);
+        return asset ? [{ ...asset, balanceHistory: upsertBalance(asset.balanceHistory, snapshot) }] : [];
+      });
+      const n = list.length;
+      return persistMany(list, n === 1 ? 'Saldo aggiornato' : `Saldi aggiornati (${n})`, 'Impossibile aggiornare i saldi.');
+    },
+    [persistMany],
+  );
+
   const updateDetails = useCallback(
     async (assetId: string, patch: Partial<Asset>) => {
       const asset = findAsset(assetId);
@@ -404,6 +460,8 @@ export function usePortfolio() {
     updateTransaction,
     deleteTransaction,
     setBalance,
+    setBalances,
+    updateTransactionDates,
     deleteBalance,
     updateDetails,
     remove,
