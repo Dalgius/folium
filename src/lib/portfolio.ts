@@ -1,6 +1,7 @@
 import { addDays, differenceInCalendarDays, format, isValid, parseISO, subDays } from 'date-fns';
-import type { Asset, AssetType, BalanceSnapshot, Transaction } from '@/types';
+import type { Asset, AssetClass, AssetType, BalanceSnapshot, Transaction } from '@/types';
 import { ASSET_TYPES, isMarketAsset, typeMeta, type AssetGroup } from '@/lib/asset-types';
+import { ASSET_CLASSES, assetClassOf } from '@/lib/asset-classes';
 
 export const BASE_CURRENCY = 'EUR';
 export const DEFAULT_TAX_RATE = 26;
@@ -281,6 +282,13 @@ export interface AllocationSlice {
   count: number;
 }
 
+export interface ClassSlice {
+  assetClass: AssetClass;
+  value: number;
+  share: number;
+  count: number;
+}
+
 export interface PortfolioSummary {
   netWorth: number;
   liquidity: number;
@@ -299,6 +307,8 @@ export interface PortfolioSummary {
   /** Scadenza del vincolo più vicina (yyyy-MM-dd) */
   nextUnlock: string | null;
   allocation: AllocationSlice[];
+  /** Ripartizione per classe di attivo (azionario, obbligazionario…) */
+  classAllocation: ClassSlice[];
   /** Valute per cui non è disponibile il cambio (esclusi dai totali) */
   missingFx: string[];
 }
@@ -310,6 +320,7 @@ export function summarize(holdings: Holding[], today: string = todayKey()): Port
   let hasDayChange = false;
   const missingFx = new Set<string>();
   const byType = new Map<AssetType, { value: number; count: number }>();
+  const byClass = new Map<AssetClass, { value: number; count: number }>();
 
   for (const h of holdings) {
     if (h.valueEur === null || h.fx === null) {
@@ -337,6 +348,12 @@ export function summarize(holdings: Holding[], today: string = todayKey()): Port
     slot.value += h.valueEur;
     slot.count += 1;
     byType.set(h.asset.type, slot);
+
+    const assetClass = assetClassOf(h.asset);
+    const classSlot = byClass.get(assetClass) ?? { value: 0, count: 0 };
+    classSlot.value += h.valueEur;
+    classSlot.count += 1;
+    byClass.set(assetClass, classSlot);
   }
 
   const netWorth = liquidity + investments + other;
@@ -345,6 +362,13 @@ export function summarize(holdings: Holding[], today: string = todayKey()): Port
     .map(type => {
       const { value, count } = byType.get(type)!;
       return { type, value, count, share: positive > 0 ? Math.max(0, value) / positive : 0 };
+    })
+    .filter(s => s.value > 0)
+    .sort((a, b) => b.value - a.value);
+  const classAllocation = ASSET_CLASSES.filter(c => byClass.has(c))
+    .map(assetClass => {
+      const { value, count } = byClass.get(assetClass)!;
+      return { assetClass, value, count, share: positive > 0 ? Math.max(0, value) / positive : 0 };
     })
     .filter(s => s.value > 0)
     .sort((a, b) => b.value - a.value);
@@ -368,6 +392,7 @@ export function summarize(holdings: Holding[], today: string = todayKey()): Port
     lockedLiquidity,
     nextUnlock,
     allocation,
+    classAllocation,
     missingFx: Array.from(missingFx),
   };
 }

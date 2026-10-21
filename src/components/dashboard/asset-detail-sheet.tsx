@@ -8,6 +8,7 @@ import { ArrowLeftRight, Pencil, Trash2, Wallet, X } from 'lucide-react';
 import type { Holding } from '@/lib/portfolio';
 import { isStale, sortBalances, sortTransactions } from '@/lib/portfolio';
 import { typeMeta } from '@/lib/asset-types';
+import { assetClassOf, classMeta } from '@/lib/asset-classes';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -58,7 +59,13 @@ export function AssetDetailSheet({ holding, open, onOpenChange, onAction, onEdit
             <div className="min-w-0">
               <SheetTitle className="truncate text-lg">{asset.name}</SheetTitle>
               <SheetDescription className="truncate">
-                {[meta.label, asset.ticker, asset.institution].filter(Boolean).join(' · ')}
+                {[
+                  meta.label,
+                  // Per ETF e fondi il tipo non dice cosa contengono: si aggiunge la classe
+                  asset.type === 'ETF' || asset.type === 'Fondo' ? classMeta(assetClassOf(asset)).label.toLowerCase() : null,
+                  asset.ticker,
+                  asset.institution,
+                ].filter(Boolean).join(' · ')}
               </SheetDescription>
             </div>
           </div>
