@@ -1,28 +1,50 @@
 'use client';
 
+import { useRef, useState } from 'react';
 import { Info } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
-/** Icona (i) con una spiegazione breve, raggiungibile anche da tastiera. */
+/**
+ * Icona (i) con una spiegazione breve, raggiungibile anche da tastiera.
+ * Con il mouse si apre al passaggio; su smartphone un tocco la apre e la lascia aperta
+ * finché non si tocca altrove o di nuovo l'icona (il Tooltip di Radix si chiuderebbe al tocco).
+ */
 export function InfoHint({ text, label = 'Cosa significa?', className }: { text: string; label?: string; className?: string }) {
+  const [open, setOpen] = useState(false);
+  // Stato al momento del tocco: il tocco sull'icona chiude il fumetto prima del click
+  const openAtPointerDown = useRef(false);
+
   return (
     <TooltipProvider delayDuration={150}>
-      <Tooltip>
+      <Tooltip open={open} onOpenChange={setOpen}>
         <TooltipTrigger asChild>
           <button
             type="button"
             aria-label={`${label} ${text}`}
             className={cn(
-              'inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full align-middle text-muted-foreground/70 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'relative inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full align-middle text-muted-foreground/70 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              // Area di tocco più ampia dell'icona
+              'before:absolute before:-inset-3 before:content-[""]',
               className,
             )}
-            onClick={e => e.stopPropagation()}
+            onPointerDown={() => {
+              openAtPointerDown.current = open;
+            }}
+            onClick={e => {
+              e.stopPropagation();
+              // Impedisce la chiusura automatica del Tooltip al click
+              e.preventDefault();
+              setOpen(!openAtPointerDown.current);
+              openAtPointerDown.current = !openAtPointerDown.current;
+            }}
           >
             <Info className="h-3.5 w-3.5" aria-hidden />
           </button>
         </TooltipTrigger>
-        <TooltipContent className="max-w-xs text-xs leading-relaxed">{text}</TooltipContent>
+        <TooltipContent collisionPadding={12} className="max-w-[min(20rem,calc(100vw-24px))] text-xs leading-relaxed">
+          {text}
+        </TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );
