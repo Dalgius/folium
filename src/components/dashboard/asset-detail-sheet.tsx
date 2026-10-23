@@ -4,9 +4,10 @@ import type { ReactNode } from 'react';
 import { format, parseISO } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
-import { ArrowLeftRight, ArrowDownUp, Pencil, Trash2, Wallet, X } from 'lucide-react';
+import { ArrowLeftRight, ArrowDownUp, Pencil, RotateCcw, Trash2, Wallet, X } from 'lucide-react';
 import type { Holding } from '@/lib/portfolio';
-import { coveringSnapshot, isStale, sortBalances, sortCashMovements, sortTransactions } from '@/lib/portfolio';
+import { accountLedger, isStale, sortBalances, sortTransactions } from '@/lib/portfolio';
+import type { Asset } from '@/types';
 import { typeMeta } from '@/lib/asset-types';
 import { assetClassOf, classMeta } from '@/lib/asset-classes';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -61,7 +62,6 @@ export function AssetDetailSheet({
   const { asset } = holding;
   const meta = typeMeta(asset.type);
   const transactions = sortTransactions(asset.transactions ?? []).reverse();
-  const cashMovements = sortCashMovements(asset.cashMovements).reverse();
   const balances = sortBalances(asset.balanceHistory).reverse();
 
   return (
@@ -101,7 +101,7 @@ export function AssetDetailSheet({
                   <Button size="sm" onClick={() => onAction('cash', asset.id)}><ArrowDownUp /> Movimento</Button>
                 )}
                 <Button size="sm" variant={asset.type === 'Conto Bancario' ? 'outline' : 'default'} onClick={() => onAction('balance', asset.id)}>
-                  <Wallet /> {asset.type === 'Altro' ? 'Aggiorna valore' : 'Aggiorna saldo'}
+                  <Wallet /> {asset.type === 'Altro' ? 'Aggiorna valore' : asset.type === 'Conto Bancario' ? 'Allinea saldo' : 'Aggiorna saldo'}
                 </Button>
               </>
             )}
@@ -197,44 +197,16 @@ export function AssetDetailSheet({
                 </ul>
               )}
             </section>
+          ) : asset.type === 'Conto Bancario' ? (
+            <LedgerSection
+              asset={asset}
+              onRestart={() => onAction('restart', asset.id)}
+              onEdit={id => onEditCashMovement(asset.id, id)}
+              onDelete={id => onDeleteCashMovement(asset.id, id)}
+            />
           ) : (
-            <>
-            {asset.type === 'Conto Bancario' && (
-              <section>
-                <h3 className="mb-2 text-sm font-semibold">Movimenti del conto</h3>
-                {cashMovements.length === 0 ? (
-                  <p className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
-                    Registra entrate e uscite per tenere aggiornato il saldo senza aspettare l&apos;estratto conto.
-                  </p>
-                ) : (
-                  <ul className="divide-y rounded-lg border">
-                    {cashMovements.map(m => {
-                      const covered = coveringSnapshot(sortBalances(asset.balanceHistory), m);
-                      return (
-                        <li key={m.id} className="flex items-center gap-3 px-3 py-2.5 text-sm">
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate">{m.description || (m.amount >= 0 ? 'Entrata' : 'Uscita')}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {fmtDate(m.date)}
-                              {covered && ` · compreso nel saldo del ${fmtDate(covered.date, 'dd/MM/yyyy')}`}
-                            </p>
-                          </div>
-                          <Money value={m.amount} currency={asset.currency} signed className={cn('font-medium', trendClass(m.amount))} />
-                          <Button variant="ghost" size="icon-sm" aria-label="Modifica movimento" onClick={() => onEditCashMovement(asset.id, m.id)}>
-                            <Pencil />
-                          </Button>
-                          <Button variant="ghost" size="icon-sm" aria-label="Elimina movimento" onClick={() => onDeleteCashMovement(asset.id, m.id)}>
-                            <X />
-                          </Button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </section>
-            )}
             <section>
-              <h3 className="mb-2 text-sm font-semibold">{asset.type === 'Conto Bancario' ? 'Saldi registrati' : 'Storico'}</h3>
+              <h3 className="mb-2 text-sm font-semibold">Storico</h3>
               {balances.length > 1 && <BalanceSparkline points={[...balances].reverse()} currency={asset.currency} />}
               <ul className="divide-y rounded-lg border">
                 {balances.map(b => (
@@ -254,11 +226,76 @@ export function AssetDetailSheet({
                 ))}
               </ul>
             </section>
-            </>
           )}
         </div>
       </SheetContent>
     </Sheet>
+  );
+}
+
+const LEDGER_LABEL = { opening: 'Saldo iniziale', snapshot: 'Saldo registrato', adjustment: 'Allineamento', movement: '' } as const;
+
+/** Libro del conto corrente: ogni riga con il saldo dopo il movimento. */
+function LedgerSection({ asset, onRestart, onEdit, onDelete }: { asset: Asset; onRestart: () => void; onEdit: (id: string) => void; onDelete: (id: string) => void }) {
+  const entries = accountLedger(asset).reverse();
+  const legacySnapshots = (asset.balanceHistory?.length ?? 0) > 1;
+
+  return (
+    <section>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold">Movimenti</h3>
+        <Button variant="ghost" size="sm" className="-mr-2 h-8 text-xs text-muted-foreground" onClick={onRestart}>
+          <RotateCcw /> Ricomincia dai movimenti
+        </Button>
+      </div>
+      {legacySnapshots && (
+        <div className="mb-3 rounded-lg border border-cat-4/40 bg-cat-4/10 p-3 text-sm">
+          <p>Questo conto ha ancora i saldi registrati mese per mese. Per avere il saldo come somma dei movimenti, imposta un saldo iniziale e registra entrate e uscite da quella data.</p>
+          <Button size="sm" variant="outline" className="mt-2" onClick={onRestart}><RotateCcw /> Ricomincia dai movimenti</Button>
+        </div>
+      )}
+      <ul className="divide-y rounded-lg border">
+        {entries.map(e => {
+          const label = e.kind === 'movement' ? e.description || (e.amount >= 0 ? 'Entrata' : 'Uscita') : LEDGER_LABEL[e.kind];
+          return (
+            <li key={e.key} className={cn('flex items-center gap-3 px-3 py-2.5 text-sm', e.excluded && 'opacity-60', e.kind === 'opening' && 'bg-muted/40')}>
+              <div className="min-w-0 flex-1">
+                <p className={cn('truncate', e.kind !== 'movement' && 'font-medium')}>{label}</p>
+                <p className="text-xs text-muted-foreground">
+                  {fmtDate(e.date)}
+                  {e.excluded && ' · prima del saldo iniziale, non conteggiato'}
+                </p>
+              </div>
+              <div className="text-right">
+                {e.kind === 'opening' ? (
+                  <Money value={e.amount} currency={asset.currency} className="font-medium" />
+                ) : (
+                  <Money value={e.amount} currency={asset.currency} signed className={cn('font-medium', trendClass(e.amount))} />
+                )}
+                {e.balance !== null && e.kind !== 'opening' && (
+                  <p className="text-xs text-muted-foreground">saldo <Money value={e.balance} currency={asset.currency} /></p>
+                )}
+              </div>
+              {e.movementId ? (
+                <>
+                  <Button variant="ghost" size="icon-sm" aria-label="Modifica movimento" onClick={() => onEdit(e.movementId!)}>
+                    <Pencil />
+                  </Button>
+                  <Button variant="ghost" size="icon-sm" aria-label="Elimina movimento" onClick={() => onDelete(e.movementId!)}>
+                    <X />
+                  </Button>
+                </>
+              ) : (
+                <span className="w-[88px] sm:w-[72px]" aria-hidden />
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {entries.length <= 1 && (
+        <p className="mt-2 text-sm text-muted-foreground">Registra entrate e uscite con «Movimento»: il saldo è il saldo iniziale più la loro somma.</p>
+      )}
+    </section>
   );
 }
 

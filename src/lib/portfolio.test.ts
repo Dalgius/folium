@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { Asset } from '@/types';
 import {
   accountBalanceAt,
+  accountLedger,
+  adjustmentFor,
   allocationBy,
   balanceAt,
   coveringSnapshot,
@@ -427,5 +429,38 @@ describe('saldo dei conti con entrate e uscite', () => {
   it('upsertBalance registra il momento del salvataggio', () => {
     const [snapshot] = upsertBalance([], { date: '2026-10-01', value: 5 });
     expect(snapshot.at).toBeTruthy();
+  });
+});
+
+describe('libro del conto corrente', () => {
+  const base: Asset = {
+    id: 'cc', name: 'Conto', type: 'Conto Bancario', currency: 'EUR', initialValue: 0, currentValue: 0,
+    balanceHistory: [{ date: '2026-01-01', value: 0, at: '2026-10-23T09:00:00.000Z' }],
+    cashMovements: [
+      { id: 'a', date: '2026-01-27', amount: 1800, description: 'Stipendio', createdAt: '2026-10-23T09:01:00.000Z' },
+      { id: 'b', date: '2026-02-03', amount: -60.5, description: 'Bolletta', createdAt: '2026-10-23T09:02:00.000Z' },
+      { id: 'c', date: '2025-12-30', amount: -10, createdAt: '2026-10-23T09:03:00.000Z' },
+    ],
+  };
+
+  it('il saldo è il saldo iniziale più la somma dei movimenti, riga per riga', () => {
+    const ledger = accountLedger(base);
+    expect(ledger.map(e => `${e.kind}:${e.balance}`)).toEqual(['movement:null', 'opening:0', 'movement:1800', 'movement:1739.5']);
+    expect(ledger[0].excluded).toBe(true);
+    expect(latestBalance(base)).toBe(1739.5);
+  });
+
+  it("l'allineamento è la differenza con il saldo della banca e porta il saldo al valore indicato", () => {
+    const amount = adjustmentFor(base, '2026-02-28', 1700);
+    expect(amount).toBe(-39.5);
+    const aligned: Asset = { ...base, cashMovements: [...base.cashMovements!, { id: 'd', kind: 'adjustment', date: '2026-02-28', amount, createdAt: '2026-10-23T09:05:00.000Z' }] };
+    expect(latestBalance(aligned)).toBe(1700);
+    expect(accountLedger(aligned).at(-1)).toMatchObject({ kind: 'adjustment', balance: 1700 });
+  });
+
+  it('i vecchi saldi registrati riallineano il saldo finché non si riparte da un saldo iniziale', () => {
+    const legacy: Asset = { ...base, balanceHistory: [...base.balanceHistory!, { date: '2026-03-31', value: 5000 }] };
+    expect(accountLedger(legacy).at(-1)).toMatchObject({ kind: 'snapshot', amount: 5000 - 1739.5, balance: 5000 });
+    expect(latestBalance(legacy)).toBe(5000);
   });
 });
