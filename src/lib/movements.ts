@@ -2,7 +2,7 @@ import type { Asset, AssetType } from '@/types';
 import { isMarketAsset } from '@/lib/asset-types';
 import { dayKey, sortBalances } from '@/lib/portfolio';
 
-export type MovementKind = 'buy' | 'sell' | 'balance' | 'opening';
+export type MovementKind = 'buy' | 'sell' | 'balance' | 'opening' | 'income' | 'expense';
 
 /** Un evento nella storia del patrimonio: un'operazione su un titolo o un saldo registrato. */
 export interface Movement {
@@ -21,7 +21,12 @@ export interface Movement {
   amount: number;
   /** Differenza rispetto al saldo precedente (solo saldi) */
   change?: number;
+  /** Descrizione delle entrate e uscite dei conti */
+  description?: string;
 }
+
+export const isTrade = (m: Movement) => m.kind === 'buy' || m.kind === 'sell';
+export const isCashFlow = (m: Movement) => m.kind === 'income' || m.kind === 'expense';
 
 /** Tutti i movimenti, dal più recente. */
 export function buildMovements(assets: Asset[]): Movement[] {
@@ -54,6 +59,16 @@ export function buildMovements(assets: Asset[]): Movement[] {
           change: i === 0 ? undefined : snapshot.value - history[i - 1].value,
         });
       });
+      for (const m of asset.cashMovements ?? []) {
+        list.push({
+          ...base,
+          id: `${asset.id}:${m.id}`,
+          date: dayKey(m.date) ?? m.date,
+          kind: m.amount >= 0 ? 'income' : 'expense',
+          amount: m.amount,
+          description: m.description,
+        });
+      }
     }
   }
   return list.sort((a, b) => b.date.localeCompare(a.date) || a.assetName.localeCompare(b.assetName, 'it'));
@@ -64,6 +79,8 @@ export const MOVEMENT_LABEL: Record<MovementKind, string> = {
   sell: 'Vendita',
   balance: 'Saldo',
   opening: 'Apertura',
+  income: 'Entrata',
+  expense: 'Uscita',
 };
 
 const csvNumber = (n: number | undefined) => (n === undefined ? '' : String(Math.round(n * 1e6) / 1e6).replace('.', ','));
@@ -71,12 +88,13 @@ const csvText = (s: string) => (/[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` 
 
 /** CSV con separatore ";" e virgola decimale, come lo apre Excel in italiano. */
 export function movementsToCsv(movements: Movement[]): string {
-  const header = ['Data', 'Asset', 'Tipo', 'Movimento', 'Quantità', 'Prezzo', 'Commissioni', 'Importo', 'Variazione', 'Valuta'];
+  const header = ['Data', 'Asset', 'Tipo', 'Movimento', 'Descrizione', 'Quantità', 'Prezzo', 'Commissioni', 'Importo', 'Variazione', 'Valuta'];
   const rows = movements.map(m => [
     m.date,
     csvText(m.assetName),
     m.assetType,
     MOVEMENT_LABEL[m.kind],
+    csvText(m.description ?? ''),
     csvNumber(m.quantity),
     csvNumber(m.price),
     csvNumber(m.fees),

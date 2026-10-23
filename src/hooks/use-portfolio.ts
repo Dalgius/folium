@@ -1,7 +1,7 @@
 'use client';
 
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Asset, BalanceSnapshot, NewAsset, Transaction } from '@/types';
+import type { Asset, BalanceSnapshot, CashMovement, NewAsset, Transaction } from '@/types';
 import { isMarketAsset } from '@/lib/asset-types';
 import { buildHoldings, computePosition, summarize, upsertBalance, type FxRates } from '@/lib/portfolio';
 import { addAsset, deleteAsset, getAssets, newId, saveAsset, saveAssets, savePrices } from '@/services/asset.service';
@@ -335,6 +335,50 @@ export function usePortfolio() {
     [deleteWithUndo],
   );
 
+  /** Entrata (importo positivo) o uscita (negativo) su un conto corrente. */
+  const addCashMovement = useCallback(
+    async (assetId: string, movement: Omit<CashMovement, 'id' | 'createdAt'>) => {
+      const asset = findAsset(assetId);
+      if (!asset) return false;
+      const created: CashMovement = { ...movement, id: newId(), createdAt: new Date().toISOString() };
+      return persist(
+        { ...asset, cashMovements: [...(asset.cashMovements ?? []), created] },
+        movement.amount >= 0 ? 'Entrata registrata' : 'Uscita registrata',
+      );
+    },
+    [persist],
+  );
+
+  const updateCashMovement = useCallback(
+    async (assetId: string, movementId: string, movement: Omit<CashMovement, 'id' | 'createdAt'>) => {
+      const asset = findAsset(assetId);
+      if (!asset) return false;
+      return persist(
+        { ...asset, cashMovements: (asset.cashMovements ?? []).map(m => (m.id === movementId ? { ...m, ...movement } : m)) },
+        'Movimento aggiornato',
+      );
+    },
+    [persist],
+  );
+
+  const deleteCashMovement = useCallback(
+    async (assetId: string, movementId: string) => {
+      const movement = findAsset(assetId)?.cashMovements?.find(m => m.id === movementId);
+      if (!movement) return false;
+      const patch = (fn: (list: CashMovement[]) => CashMovement[]) =>
+        setAssets(current => current.map(a => (a.id === assetId ? { ...a, cashMovements: fn(a.cashMovements ?? []) } : a)));
+      deleteWithUndo({
+        title: 'Movimento eliminato',
+        apply: () => patch(list => list.filter(m => m.id !== movementId)),
+        restore: () => patch(list => [...list, movement]),
+        write: () => saveCurrent(assetId),
+        error: 'Impossibile eliminare il movimento.',
+      });
+      return true;
+    },
+    [deleteWithUndo],
+  );
+
   const setBalance = useCallback(
     async (assetId: string, snapshot: BalanceSnapshot) => {
       const asset = findAsset(assetId);
@@ -461,6 +505,9 @@ export function usePortfolio() {
     deleteTransaction,
     setBalance,
     setBalances,
+    addCashMovement,
+    updateCashMovement,
+    deleteCashMovement,
     updateTransactionDates,
     deleteBalance,
     updateDetails,

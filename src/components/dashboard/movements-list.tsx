@@ -5,7 +5,7 @@ import { format, parseISO } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { ArrowLeftRight, Search, SearchX } from 'lucide-react';
 import type { Asset } from '@/types';
-import { buildMovements, MOVEMENT_LABEL, type Movement } from '@/lib/movements';
+import { buildMovements, isCashFlow, isTrade, MOVEMENT_LABEL, type Movement } from '@/lib/movements';
 import { Money } from '@/components/money';
 import { Trend } from '@/components/trend';
 import { AssetBadge } from '@/components/asset-icons';
@@ -15,14 +15,14 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatNumber } from '@/lib/utils';
+import { cn, formatNumber, trendClass } from '@/lib/utils';
 
-type Filter = 'all' | 'trades' | 'balances';
+type Filter = 'all' | 'trades' | 'accounts';
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: 'all', label: 'Tutti' },
-  { value: 'trades', label: 'Operazioni' },
-  { value: 'balances', label: 'Saldi' },
+  { value: 'trades', label: 'Titoli' },
+  { value: 'accounts', label: 'Conti' },
 ];
 
 const PAGE = 60;
@@ -42,18 +42,21 @@ export function MovementsList({ assets, loading, onSelect }: MovementsListProps)
   const all = useMemo(() => buildMovements(assets), [assets]);
   const query = search.trim().toLowerCase();
   const filtered = all.filter(m => {
-    if (filter === 'trades' && m.kind !== 'buy' && m.kind !== 'sell') return false;
-    if (filter === 'balances' && m.kind !== 'balance' && m.kind !== 'opening') return false;
-    return !query || m.assetName.toLowerCase().includes(query);
+    if (filter === 'trades' && !isTrade(m)) return false;
+    if (filter === 'accounts' && isTrade(m)) return false;
+    return !query || m.assetName.toLowerCase().includes(query) || !!m.description?.toLowerCase().includes(query);
   });
   const shown = filtered.slice(0, limit);
 
   const months = useMemo(() => {
-    const groups: { key: string; label: string; items: Movement[] }[] = [];
+    const groups: { key: string; label: string; items: Movement[]; income: number; expense: number }[] = [];
     for (const m of shown) {
       const key = m.date.slice(0, 7);
-      if (groups.at(-1)?.key !== key) groups.push({ key, label: format(parseISO(m.date), 'MMMM yyyy', { locale: it }), items: [] });
-      groups.at(-1)!.items.push(m);
+      if (groups.at(-1)?.key !== key) groups.push({ key, label: format(parseISO(m.date), 'MMMM yyyy', { locale: it }), items: [], income: 0, expense: 0 });
+      const group = groups.at(-1)!;
+      group.items.push(m);
+      if (m.kind === 'income') group.income += m.amount;
+      if (m.kind === 'expense') group.expense += m.amount;
     }
     return groups;
   }, [shown]);
@@ -86,15 +89,21 @@ export function MovementsList({ assets, loading, onSelect }: MovementsListProps)
           {all.length === 0 ? <ArrowLeftRight className="h-8 w-8 text-muted-foreground" /> : <SearchX className="h-8 w-8 text-muted-foreground" />}
           <p className="mt-3 font-medium">{all.length === 0 ? 'Nessun movimento' : 'Nessun movimento trovato'}</p>
           <p className="text-sm text-muted-foreground">
-            {all.length === 0 ? 'Acquisti, vendite e saldi registrati compariranno qui.' : 'Prova a cambiare filtro o ricerca.'}
+            {all.length === 0 ? 'Acquisti, vendite, entrate, uscite e saldi compariranno qui.' : 'Prova a cambiare filtro o ricerca.'}
           </p>
         </div>
       ) : (
         <>
           {months.map(month => (
             <section key={month.key} aria-label={month.label}>
-              <h3 className="border-b bg-muted/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:px-5">
-                {month.label}
+              <h3 className="flex flex-wrap items-center justify-between gap-x-4 gap-y-0.5 border-b bg-muted/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:px-5">
+                <span>{month.label}</span>
+                {(month.income !== 0 || month.expense !== 0) && (
+                  <span className="font-normal normal-case tracking-normal">
+                    entrate <Money value={month.income} signed className="font-medium text-foreground" />
+                    {' · '}uscite <Money value={month.expense} signed className="font-medium text-foreground" />
+                  </span>
+                )}
               </h3>
               <ul className="divide-y">
                 {month.items.map(m => <MovementRow key={m.id} movement={m} onSelect={onSelect} />)}
@@ -115,7 +124,7 @@ export function MovementsList({ assets, loading, onSelect }: MovementsListProps)
 }
 
 function MovementRow({ movement: m, onSelect }: { movement: Movement; onSelect: (assetId: string) => void }) {
-  const trade = m.kind === 'buy' || m.kind === 'sell';
+  const trade = isTrade(m);
   return (
     <li>
       <button
@@ -131,16 +140,17 @@ function MovementRow({ movement: m, onSelect }: { movement: Movement; onSelect: 
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium">{m.assetName}</span>
           <span className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Badge variant={m.kind === 'sell' ? 'outline' : 'secondary'} className="px-1.5 py-0 text-[11px] font-medium">{MOVEMENT_LABEL[m.kind]}</Badge>
+            <Badge variant={m.kind === 'sell' || m.kind === 'expense' ? 'outline' : 'secondary'} className="px-1.5 py-0 text-[11px] font-medium">{MOVEMENT_LABEL[m.kind]}</Badge>
             {trade && (
               <span className="truncate tabular">
                 {formatNumber(m.quantity!)} × <Money value={m.price!} currency={m.currency} />
               </span>
             )}
+            {m.description && <span className="truncate">{m.description}</span>}
           </span>
         </span>
         <span className="shrink-0 text-right text-sm">
-          <Money value={m.amount} currency={m.currency} className="block font-medium" />
+          <Money value={m.amount} currency={m.currency} signed={isCashFlow(m)} className={cn('block font-medium', isCashFlow(m) && trendClass(m.amount))} />
           {m.change !== undefined && <Trend value={m.change} currency={m.currency} showIcon={false} className="text-xs" />}
         </span>
       </button>

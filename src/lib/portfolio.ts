@@ -1,5 +1,5 @@
 import { addDays, differenceInCalendarDays, format, isValid, parseISO, subDays } from 'date-fns';
-import type { Asset, AssetClass, AssetType, BalanceSnapshot, Transaction } from '@/types';
+import type { Asset, AssetClass, AssetType, BalanceSnapshot, CashMovement, Transaction } from '@/types';
 import { ASSET_TYPES, isMarketAsset, typeMeta, type AssetGroup } from '@/lib/asset-types';
 import { ASSET_CLASSES, assetClassOf } from '@/lib/asset-classes';
 
@@ -111,9 +111,55 @@ export function sortBalances(history: BalanceSnapshot[] = []): BalanceSnapshot[]
   return [...history].sort((a, b) => (dayKey(a.date) ?? '').localeCompare(dayKey(b.date) ?? ''));
 }
 
+/** Saldo attuale: ultimo saldo registrato più le entrate e uscite successive. */
 export function latestBalance(asset: Asset): number {
   const history = sortBalances(asset.balanceHistory);
-  return history.length ? history[history.length - 1].value : asset.currentValue ?? 0;
+  if (!history.length) return asset.currentValue ?? 0;
+  return accountBalanceAt(history, asset.cashMovements, '9999-12-31');
+}
+
+/**
+ * Il movimento è già compreso in questo saldo registrato?
+ * Sì se è di un giorno precedente; nello stesso giorno, se è stato inserito prima del saldo
+ * (i saldi senza ora di registrazione valgono come registrati a inizio giornata).
+ */
+function coveredBy(snapshot: BalanceSnapshot, movement: CashMovement): boolean {
+  const snapDay = dayKey(snapshot.date) ?? '';
+  const moveDay = dayKey(movement.date) ?? '';
+  if (moveDay !== snapDay) return moveDay < snapDay;
+  return !!snapshot.at && movement.createdAt <= snapshot.at;
+}
+
+/**
+ * Saldo di un conto in una certa data: ultimo saldo registrato fino a quel giorno
+ * più i movimenti inseriti dopo di esso. Il saldo registrato è il dato della banca:
+ * i movimenti precedenti sono già compresi e non vengono sommati di nuovo.
+ */
+export function accountBalanceAt(sortedHistory: BalanceSnapshot[], movements: CashMovement[] = [], day: string): number {
+  if (sortedHistory.length === 0) {
+    return movements.reduce((sum, m) => ((dayKey(m.date) ?? '') <= day ? sum + m.amount : sum), 0);
+  }
+  let anchor: BalanceSnapshot | null = null;
+  for (const snap of sortedHistory) {
+    if ((dayKey(snap.date) ?? '') <= day) anchor = snap;
+    else break;
+  }
+  // Prima del primo saldo noto si assume il primo valore registrato
+  if (!anchor) return sortedHistory[0].value;
+  let value = anchor.value;
+  for (const m of movements) {
+    if ((dayKey(m.date) ?? '') <= day && !coveredBy(anchor, m)) value += m.amount;
+  }
+  return value;
+}
+
+/** Il primo saldo registrato che comprende già il movimento, se c'è. */
+export function coveringSnapshot(sortedHistory: BalanceSnapshot[], movement: CashMovement): BalanceSnapshot | null {
+  return sortedHistory.find(s => coveredBy(s, movement)) ?? null;
+}
+
+export function sortCashMovements(movements: CashMovement[] = []): CashMovement[] {
+  return [...movements].sort((a, b) => (dayKey(a.date) ?? '').localeCompare(dayKey(b.date) ?? '') || a.createdAt.localeCompare(b.createdAt));
 }
 
 /**
@@ -134,7 +180,7 @@ export function balanceAt(sortedHistory: BalanceSnapshot[], day: string): number
 export function upsertBalance(history: BalanceSnapshot[] = [], snapshot: BalanceSnapshot): BalanceSnapshot[] {
   const day = dayKey(snapshot.date);
   const rest = history.filter(s => dayKey(s.date) !== day);
-  return sortBalances([...rest, { date: day ?? snapshot.date, value: snapshot.value }]);
+  return sortBalances([...rest, { date: day ?? snapshot.date, value: snapshot.value, at: snapshot.at ?? new Date().toISOString() }]);
 }
 
 // ---------------------------------------------------------------------------
@@ -516,7 +562,7 @@ export function buildHistory({ assets, prices, fxHistory, fxNow, start, end = to
     });
     return { asset, timeline, cursor: -1, price: carryForward(asset.ticker ? prices[asset.ticker] : undefined) };
   });
-  const manualState = manual.map(asset => ({ asset, history: sortBalances(asset.balanceHistory) }));
+  const manualState = manual.map(asset => ({ asset, history: sortBalances(asset.balanceHistory), movements: asset.cashMovements ?? [] }));
 
   const points: HistoryPoint[] = [];
   for (let d = parseISO(start); format(d, 'yyyy-MM-dd') <= end; d = addDays(d, 1)) {
@@ -537,10 +583,10 @@ export function buildHistory({ assets, prices, fxHistory, fxNow, start, end = to
       invested += position.netInvested * fx;
     }
 
-    for (const { asset, history } of manualState) {
+    for (const { asset, history, movements } of manualState) {
       const fx = fxAt(asset.currency, day);
       if (fx === null) continue;
-      cash += balanceAt(history, day) * fx;
+      cash += accountBalanceAt(history, movements, day) * fx;
     }
 
     points.push({ date: day, netWorth: investments + cash, investments, invested, cash });
@@ -609,7 +655,7 @@ export function buildIntradayHistory({ assets, prices, fxHistory, fxNow, maxPoin
     position: positionCursor(asset),
     price: carryForward(asset.ticker ? prices[asset.ticker.toUpperCase()] : undefined, { backfill: true }),
   }));
-  const manualState = manual.map(asset => ({ asset, history: sortBalances(asset.balanceHistory) }));
+  const manualState = manual.map(asset => ({ asset, history: sortBalances(asset.balanceHistory), movements: asset.cashMovements ?? [] }));
 
   const points = times.map(time => {
     const day = dayKey(time) ?? time.slice(0, 10);
@@ -626,9 +672,9 @@ export function buildIntradayHistory({ assets, prices, fxHistory, fxNow, maxPoin
       investments += position.quantity * (close ?? position.avgPrice) * rate;
       invested += position.netInvested * rate;
     }
-    for (const { asset, history } of manualState) {
+    for (const { asset, history, movements } of manualState) {
       const rate = fx(asset.currency);
-      if (rate !== null) cash += balanceAt(history, day) * rate;
+      if (rate !== null) cash += accountBalanceAt(history, movements, day) * rate;
     }
     return { date: time, netWorth: investments + cash, investments, invested, cash };
   });

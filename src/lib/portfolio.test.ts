@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { Asset } from '@/types';
 import {
+  accountBalanceAt,
   allocationBy,
   balanceAt,
+  coveringSnapshot,
+  latestBalance,
+  sortBalances,
   buildHistory,
   buildHoldings,
   buildIntradayHistory,
@@ -386,5 +390,42 @@ describe('netWorthChange', () => {
   it('senza dati sufficienti restituisce null', () => {
     expect(netWorthChange([pt('2026-10-23', 1, 0, 0)], '2026-09-30')).toBeNull();
     expect(netWorthChange([pt('2026-10-22', 1, 0, 0), pt('2026-10-23', 1, 0, 0)], '2026-10-23')).toBeNull();
+  });
+});
+
+describe('saldo dei conti con entrate e uscite', () => {
+  const at = (s: string) => `${s}T12:00:00.000Z`;
+  const conto = (cashMovements: Asset['cashMovements'], balanceHistory: Asset['balanceHistory'] = [{ date: '2026-09-30', value: 1000, at: at('2026-09-30') }]): Asset => ({
+    id: 'cc', name: 'Conto', type: 'Conto Bancario', currency: 'EUR', initialValue: 0, currentValue: 0, balanceHistory, cashMovements,
+  });
+
+  it("somma i movimenti successivi all'ultimo saldo registrato", () => {
+    const a = conto([
+      { id: '1', date: '2026-10-02', amount: -50, createdAt: at('2026-10-02') },
+      { id: '2', date: '2026-10-10', amount: 1800, createdAt: at('2026-10-10') },
+    ]);
+    expect(latestBalance(a)).toBe(2750);
+    expect(accountBalanceAt(sortBalances(a.balanceHistory), a.cashMovements, '2026-10-05')).toBe(950);
+  });
+
+  it('non conta di nuovo i movimenti già compresi in un saldo', () => {
+    const a = conto([
+      { id: '1', date: '2026-09-20', amount: -50, createdAt: at('2026-10-15') },
+      { id: '2', date: '2026-09-30', amount: -20, createdAt: '2026-09-30T08:00:00.000Z' },
+    ]);
+    expect(latestBalance(a)).toBe(1000);
+    expect(coveringSnapshot(sortBalances(a.balanceHistory), a.cashMovements![0])?.date).toBe('2026-09-30');
+  });
+
+  it('nello stesso giorno conta solo ciò che è stato inserito dopo il saldo', () => {
+    const after = { id: '3', date: '2026-09-30', amount: 100, createdAt: '2026-09-30T18:00:00.000Z' };
+    expect(latestBalance(conto([after]))).toBe(1100);
+    // Un saldo senza ora (versioni precedenti) vale come registrato a inizio giornata
+    expect(latestBalance(conto([{ ...after, createdAt: '2026-09-30T08:00:00.000Z' }], [{ date: '2026-09-30', value: 1000 }]))).toBe(1100);
+  });
+
+  it('upsertBalance registra il momento del salvataggio', () => {
+    const [snapshot] = upsertBalance([], { date: '2026-10-01', value: 5 });
+    expect(snapshot.at).toBeTruthy();
   });
 });

@@ -72,7 +72,7 @@ export function SettingsPanel({ assets }: { assets: Asset[] }) {
       </Section>
 
       <Section title="Dati">
-        <Row label="Movimenti in CSV" description="Acquisti, vendite e saldi, da aprire con Excel o Numbers.">
+        <Row label="Movimenti in CSV" description="Acquisti, vendite, entrate, uscite e saldi, da aprire con Excel o Numbers.">
           <Button variant="outline" onClick={exportCsv} disabled={!assets.length}>
             <Download /> Scarica CSV
           </Button>

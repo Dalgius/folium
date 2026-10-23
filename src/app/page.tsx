@@ -27,6 +27,7 @@ import { EditAssetDialog } from '@/components/forms/edit-asset-dialog';
 import { ConfirmDialog } from '@/components/forms/confirm-dialog';
 import { cn } from '@/lib/utils';
 import { BalancesDialog } from '@/components/forms/balances-dialog';
+import { CashMovementDialog } from '@/components/forms/cash-movement-dialog';
 import { TransactionDatesDialog } from '@/components/forms/transaction-dates-dialog';
 
 const TITLES = {
@@ -40,6 +41,7 @@ type DialogState =
   | { kind: 'add'; initial?: AddKind }
   | { kind: 'transaction'; assetId: string; txId?: string }
   | { kind: 'balance' | 'edit' | 'delete'; assetId: string }
+  | { kind: 'cash'; assetId: string; movementId?: string }
   | { kind: 'balances' | 'dates' }
   | null;
 
@@ -139,6 +141,14 @@ export default function Dashboard() {
         onSubmit={(assetId, tx, txId) => (txId ? portfolio.updateTransaction(assetId, txId, tx) : portfolio.addTransaction(assetId, tx))}
       />
       <BalanceDialog asset={dialogAsset} open={dialog?.kind === 'balance'} onOpenChange={closeDialog} onSubmit={portfolio.setBalance} />
+      <CashMovementDialog
+        asset={dialogAsset}
+        movement={dialog?.kind === 'cash' && dialog.movementId ? dialogAsset?.cashMovements?.find(m => m.id === dialog.movementId) ?? null : null}
+        open={dialog?.kind === 'cash'}
+        onOpenChange={closeDialog}
+        onSubmit={(assetId, movement, movementId) =>
+          movementId ? portfolio.updateCashMovement(assetId, movementId, movement) : portfolio.addCashMovement(assetId, movement)}
+      />
       <BalancesDialog assets={assets} open={dialog?.kind === 'balances'} onOpenChange={closeDialog} onSubmit={portfolio.setBalances} />
       <TransactionDatesDialog assets={assets} open={dialog?.kind === 'dates'} onOpenChange={closeDialog} onSubmit={portfolio.updateTransactionDates} />
       <EditAssetDialog asset={dialogAsset} open={dialog?.kind === 'edit'} onOpenChange={closeDialog} onSubmit={portfolio.updateDetails} />
@@ -163,6 +173,8 @@ export default function Dashboard() {
         onEditTransaction={(assetId, txId) => setDialog({ kind: 'transaction', assetId, txId })}
         onDeleteTransaction={portfolio.deleteTransaction}
         onDeleteBalance={portfolio.deleteBalance}
+        onEditCashMovement={(assetId, movementId) => setDialog({ kind: 'cash', assetId, movementId })}
+        onDeleteCashMovement={portfolio.deleteCashMovement}
         dayLabel={dayLabel}
       />
     </div>

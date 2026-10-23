@@ -26,6 +26,10 @@ const assets: Asset[] = [
       { date: '2024-03-01', value: 1500 },
       { date: '2024-01-01', value: 1000 },
     ],
+    cashMovements: [
+      { id: 'm1', date: '2024-03-05', amount: -42.5, description: 'Bolletta; luce', createdAt: '2024-03-05T10:00:00.000Z' },
+      { id: 'm2', date: '2024-03-27', amount: 1800, description: 'Stipendio', createdAt: '2024-03-27T10:00:00.000Z' },
+    ],
   },
 ];
 
@@ -34,22 +38,26 @@ describe('buildMovements', () => {
     const list = buildMovements(assets);
     expect(list.map(m => `${m.date} ${m.kind}`)).toEqual([
       '2024-06-10 sell',
+      '2024-03-27 income',
+      '2024-03-05 expense',
       '2024-03-01 balance',
       '2024-01-10 buy',
       '2024-01-01 opening',
     ]);
     expect(list[0].amount).toBe(479);
-    expect(list[1].change).toBe(500);
-    expect(list[2].amount).toBe(1002);
-    expect(list[3].change).toBeUndefined();
+    expect(list[2]).toMatchObject({ amount: -42.5, description: 'Bolletta; luce' });
+    expect(list[3].change).toBe(500);
+    expect(list[4].amount).toBe(1002);
+    expect(list[5].change).toBeUndefined();
   });
 });
 
 describe('movementsToCsv', () => {
   it('usa ";" e la virgola decimale, con i testi tra virgolette se serve', () => {
     const csv = movementsToCsv(buildMovements(assets)).split('\n');
-    expect(csv[0]).toBe('Data;Asset;Tipo;Movimento;Quantità;Prezzo;Commissioni;Importo;Variazione;Valuta');
-    expect(csv[1]).toBe('2024-06-10;Vanguard FTSE All-World;ETF;Vendita;4;120;1;479;;EUR');
-    expect(csv[2]).toBe('2024-03-01;"Conto ""principale""";Conto Bancario;Saldo;;;;1500;500;EUR');
+    expect(csv[0]).toBe('Data;Asset;Tipo;Movimento;Descrizione;Quantità;Prezzo;Commissioni;Importo;Variazione;Valuta');
+    expect(csv[1]).toBe('2024-06-10;Vanguard FTSE All-World;ETF;Vendita;;4;120;1;479;;EUR');
+    expect(csv[3]).toBe('2024-03-05;"Conto ""principale""";Conto Bancario;Uscita;"Bolletta; luce";;;;-42,5;;EUR');
+    expect(csv[4]).toBe('2024-03-01;"Conto ""principale""";Conto Bancario;Saldo;;;;;1500;500;EUR');
   });
 });

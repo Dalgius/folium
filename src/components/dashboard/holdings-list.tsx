@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { format, parseISO } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { ArrowLeftRight, CalendarDays, ChevronDown, MoreHorizontal, Pencil, PencilLine, Search, SearchX, Trash2, Wallet, Clock } from 'lucide-react';
+import { ArrowDownUp, ArrowLeftRight, CalendarDays, ChevronDown, MoreHorizontal, Pencil, PencilLine, Search, SearchX, Trash2, Wallet, Clock } from 'lucide-react';
 import type { Holding } from '@/lib/portfolio';
 import { GROUP_LABEL, typeMeta, type AssetGroup } from '@/lib/asset-types';
-import { isStale, latestBalance, sortBalances } from '@/lib/portfolio';
+import { coveringSnapshot, isStale, latestBalance, sortBalances } from '@/lib/portfolio';
 import { Money } from '@/components/money';
 import { Trend } from '@/components/trend';
 import { AssetBadge } from '@/components/asset-icons';
@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn, formatNumber, formatPercent } from '@/lib/utils';
 
-export type HoldingAction = 'details' | 'transaction' | 'balance' | 'edit' | 'delete';
+export type HoldingAction = 'details' | 'transaction' | 'balance' | 'cash' | 'edit' | 'delete';
 
 type Filter = 'all' | AssetGroup;
 type Sort = 'value' | 'name' | 'performance' | 'day';
@@ -247,6 +247,9 @@ function HoldingRow({ holding: h, onAction }: { holding: Holding; onAction: Hold
     const last = history[history.length - 1];
     if (last) {
       detail = <span className="text-muted-foreground">Saldo al {format(parseISO(last.date), 'dd/MM/yyyy')}</span>;
+      // Entrate e uscite inserite dopo l'ultimo saldo registrato, già sommate al valore
+      const after = (asset.cashMovements ?? []).filter(m => !coveringSnapshot(history, m)).length;
+      if (after) detailSub = <span>+ {after === 1 ? '1 movimento successivo' : `${after} movimenti successivi`}</span>;
     }
     const change = h.group === 'other' ? manualChange(h) : null;
     if (change) {
@@ -345,9 +348,16 @@ export function RowMenu({ holding: h, onAction }: { holding: Holding; onAction: 
             <ArrowLeftRight className="mr-2 h-4 w-4" /> Registra operazione
           </DropdownMenuItem>
         ) : (
-          <DropdownMenuItem onSelect={() => onAction('balance', h.asset.id)}>
-            <Wallet className="mr-2 h-4 w-4" /> Aggiorna saldo
-          </DropdownMenuItem>
+          <>
+            {h.asset.type === 'Conto Bancario' && (
+              <DropdownMenuItem onSelect={() => onAction('cash', h.asset.id)}>
+                <ArrowDownUp className="mr-2 h-4 w-4" /> Registra movimento
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onSelect={() => onAction('balance', h.asset.id)}>
+              <Wallet className="mr-2 h-4 w-4" /> {h.asset.type === 'Altro' ? 'Aggiorna valore' : 'Aggiorna saldo'}
+            </DropdownMenuItem>
+          </>
         )}
         <DropdownMenuItem onSelect={() => onAction('edit', h.asset.id)}>
           <Pencil className="mr-2 h-4 w-4" /> Modifica dettagli
