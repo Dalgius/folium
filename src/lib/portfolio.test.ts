@@ -11,6 +11,7 @@ import {
   depositInterest,
   invalidSellIds,
   isStale,
+  netWorthChange,
   periodReturn,
   summarize,
   upsertBalance,
@@ -350,5 +351,40 @@ describe('buildIntradayHistory', () => {
 
   it('senza prezzi restituisce una serie vuota', () => {
     expect(buildIntradayHistory({ assets: [], prices: {}, fxHistory: {}, fxNow: {} })).toEqual([]);
+  });
+});
+
+describe('netWorthChange', () => {
+  const pt = (date: string, cash: number, investments: number, invested: number) =>
+    ({ date, cash, investments, invested, netWorth: cash + investments });
+
+  it("separa il rendimento dei mercati dai risparmi", () => {
+    const points = [
+      pt('2026-09-30', 10000, 5000, 4000),
+      // acquisto di 1000 € pagato dal conto: il patrimonio non cambia
+      pt('2026-10-05', 9000, 6000, 5000),
+      // i prezzi salgono di 300 €
+      pt('2026-10-15', 9000, 6300, 5000),
+      // arrivano 1500 € di risparmi sul conto
+      pt('2026-10-23', 10500, 6300, 5000),
+    ];
+    const r = netWorthChange(points, '2026-09-30')!;
+    expect(r.change).toBe(1800);
+    expect(r.market).toBeCloseTo(300);
+    expect(r.other).toBeCloseTo(1500);
+    expect(r.pct).toBeCloseTo(1800 / 15000);
+    expect(r.since).toBe('2026-09-30');
+  });
+
+  it("parte dal primo punto se lo storico inizia dopo la data richiesta", () => {
+    const r = netWorthChange([pt('2026-03-12', 1000, 0, 0), pt('2026-10-23', 1200, 0, 0)], '2025-12-31')!;
+    expect(r.since).toBe('2026-03-12');
+    expect(r.other).toBe(200);
+    expect(r.market).toBe(0);
+  });
+
+  it('senza dati sufficienti restituisce null', () => {
+    expect(netWorthChange([pt('2026-10-23', 1, 0, 0)], '2026-09-30')).toBeNull();
+    expect(netWorthChange([pt('2026-10-22', 1, 0, 0), pt('2026-10-23', 1, 0, 0)], '2026-10-23')).toBeNull();
   });
 });

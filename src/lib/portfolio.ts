@@ -673,3 +673,42 @@ export function periodReturn(points: Pick<HistoryPoint, 'investments' | 'investe
   const capital = first.investments + deposits;
   return { gain, pct: capital > 0 ? gain / capital : 0 };
 }
+
+export interface NetWorthChange {
+  /** Variazione del patrimonio netto nel periodo, in EUR */
+  change: number;
+  pct: number;
+  /** Parte dovuta all'andamento dei titoli (al netto di acquisti e vendite) */
+  market: number;
+  /** Il resto: nuovi risparmi sui conti, interessi, valore degli altri beni */
+  other: number;
+  /** Data del punto di partenza effettivo */
+  since: string;
+}
+
+/**
+ * Variazione del patrimonio da una data (esclusa) a oggi, scomposta tra mercati e risparmi.
+ * Gli acquisti di titoli spostano denaro dai conti agli investimenti: non cambiano il patrimonio
+ * e non vengono contati né come rendimento né come risparmio.
+ */
+export function netWorthChange(points: HistoryPoint[], from: string): NetWorthChange | null {
+  if (points.length < 2) return null;
+  let baseIndex = 0;
+  for (let i = 0; i < points.length; i++) {
+    if (points[i].date.slice(0, 10) <= from) baseIndex = i;
+    else break;
+  }
+  const span = points.slice(baseIndex);
+  if (span.length < 2) return null;
+  const base = span[0];
+  const last = span[span.length - 1];
+  const change = last.netWorth - base.netWorth;
+  const market = periodReturn(span).gain;
+  return {
+    change,
+    pct: base.netWorth > 0 ? change / base.netWorth : 0,
+    market,
+    other: change - market,
+    since: base.date.slice(0, 10),
+  };
+}

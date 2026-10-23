@@ -16,6 +16,7 @@ import { PerformanceChart } from '@/components/dashboard/performance-chart';
 import { AllocationCard } from '@/components/dashboard/allocation-card';
 import { MaturitiesCard } from '@/components/dashboard/maturities-card';
 import { TopHoldingsCard } from '@/components/dashboard/top-holdings-card';
+import { NetWorthChangeCard } from '@/components/dashboard/net-worth-change-card';
 import { HoldingsList, type HoldingAction } from '@/components/dashboard/holdings-list';
 import { AssetDetailSheet } from '@/components/dashboard/asset-detail-sheet';
 import { EmptyState } from '@/components/dashboard/empty-state';
@@ -99,6 +100,7 @@ export default function Dashboard() {
           ) : (
             <>
               <StatCards summary={summary} loading={loading} dayLabel={dayLabel} />
+              {!loading && <NetWorthChangeCard assets={assets} fx={fx} />}
 
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                 <div className="lg:col-span-2">

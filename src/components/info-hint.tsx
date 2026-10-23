@@ -35,4 +35,6 @@ export const HINTS = {
   invested: 'Soldi versati negli investimenti (acquisti meno incassi delle vendite) fino a quella data.',
   accrued: 'Stima degli interessi netti maturati finora sui conti deposito, già al netto della ritenuta. Non include il bollo dello 0,20%.',
   locked: 'Soldi nei conti deposito vincolati: non sono disponibili fino alla scadenza.',
+  market: 'Quanto hanno guadagnato o perso i tuoi titoli nel periodo, senza contare acquisti e vendite.',
+  savings: 'Il resto della variazione: soldi nuovi sui conti, interessi dei depositi, valore aggiornato degli altri beni. Gli acquisti di titoli spostano denaro e non contano.',
 } as const;
