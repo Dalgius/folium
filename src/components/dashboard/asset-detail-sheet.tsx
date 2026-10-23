@@ -4,9 +4,9 @@ import type { ReactNode } from 'react';
 import { format, parseISO } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
-import { ArrowLeftRight, Pencil, Trash2, Wallet, X } from 'lucide-react';
+import { ArrowLeftRight, ArrowDownUp, Pencil, Trash2, Wallet, X } from 'lucide-react';
 import type { Holding } from '@/lib/portfolio';
-import { isStale, sortBalances, sortTransactions } from '@/lib/portfolio';
+import { coveringSnapshot, isStale, sortBalances, sortCashMovements, sortTransactions } from '@/lib/portfolio';
 import { typeMeta } from '@/lib/asset-types';
 import { assetClassOf, classMeta } from '@/lib/asset-classes';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -17,7 +17,7 @@ import { AssetBadge } from '@/components/asset-icons';
 import { Money } from '@/components/money';
 import { Trend } from '@/components/trend';
 import { HINTS, InfoHint } from '@/components/info-hint';
-import { cn, formatNumber, formatPercent } from '@/lib/utils';
+import { cn, formatNumber, formatPercent, trendClass } from '@/lib/utils';
 import type { HoldingAction } from '@/components/dashboard/holdings-list';
 
 interface AssetDetailSheetProps {
@@ -28,6 +28,8 @@ interface AssetDetailSheetProps {
   onEditTransaction: (assetId: string, txId: string) => void;
   onDeleteTransaction: (assetId: string, txId: string) => Promise<boolean>;
   onDeleteBalance: (assetId: string, date: string) => Promise<boolean>;
+  onEditCashMovement: (assetId: string, movementId: string) => void;
+  onDeleteCashMovement: (assetId: string, movementId: string) => Promise<boolean>;
   /** "oggi" o "ultima seduta" */
   dayLabel?: string;
 }
@@ -43,11 +45,23 @@ function Metric({ label, children, className }: { label: string; children: React
   );
 }
 
-export function AssetDetailSheet({ holding, open, onOpenChange, onAction, onEditTransaction, onDeleteTransaction, onDeleteBalance, dayLabel = 'oggi' }: AssetDetailSheetProps) {
+export function AssetDetailSheet({
+  holding,
+  open,
+  onOpenChange,
+  onAction,
+  onEditTransaction,
+  onDeleteTransaction,
+  onDeleteBalance,
+  onEditCashMovement,
+  onDeleteCashMovement,
+  dayLabel = 'oggi',
+}: AssetDetailSheetProps) {
   if (!holding) return null;
   const { asset } = holding;
   const meta = typeMeta(asset.type);
   const transactions = sortTransactions(asset.transactions ?? []).reverse();
+  const cashMovements = sortCashMovements(asset.cashMovements).reverse();
   const balances = sortBalances(asset.balanceHistory).reverse();
 
   return (
@@ -82,7 +96,14 @@ export function AssetDetailSheet({ holding, open, onOpenChange, onAction, onEdit
             {meta.isMarket ? (
               <Button size="sm" onClick={() => onAction('transaction', asset.id)}><ArrowLeftRight /> Registra operazione</Button>
             ) : (
-              <Button size="sm" onClick={() => onAction('balance', asset.id)}><Wallet /> {asset.type === 'Altro' ? 'Aggiorna valore' : 'Aggiorna saldo'}</Button>
+              <>
+                {asset.type === 'Conto Bancario' && (
+                  <Button size="sm" onClick={() => onAction('cash', asset.id)}><ArrowDownUp /> Movimento</Button>
+                )}
+                <Button size="sm" variant={asset.type === 'Conto Bancario' ? 'outline' : 'default'} onClick={() => onAction('balance', asset.id)}>
+                  <Wallet /> {asset.type === 'Altro' ? 'Aggiorna valore' : 'Aggiorna saldo'}
+                </Button>
+              </>
             )}
             <Button size="sm" variant="outline" onClick={() => onAction('edit', asset.id)}><Pencil /> Modifica</Button>
             <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => onAction('delete', asset.id)}><Trash2 /> Elimina</Button>
@@ -177,8 +198,43 @@ export function AssetDetailSheet({ holding, open, onOpenChange, onAction, onEdit
               )}
             </section>
           ) : (
+            <>
+            {asset.type === 'Conto Bancario' && (
+              <section>
+                <h3 className="mb-2 text-sm font-semibold">Movimenti del conto</h3>
+                {cashMovements.length === 0 ? (
+                  <p className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
+                    Registra entrate e uscite per tenere aggiornato il saldo senza aspettare l&apos;estratto conto.
+                  </p>
+                ) : (
+                  <ul className="divide-y rounded-lg border">
+                    {cashMovements.map(m => {
+                      const covered = coveringSnapshot(sortBalances(asset.balanceHistory), m);
+                      return (
+                        <li key={m.id} className="flex items-center gap-3 px-3 py-2.5 text-sm">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate">{m.description || (m.amount >= 0 ? 'Entrata' : 'Uscita')}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {fmtDate(m.date)}
+                              {covered && ` · compreso nel saldo del ${fmtDate(covered.date, 'dd/MM/yyyy')}`}
+                            </p>
+                          </div>
+                          <Money value={m.amount} currency={asset.currency} signed className={cn('font-medium', trendClass(m.amount))} />
+                          <Button variant="ghost" size="icon-sm" aria-label="Modifica movimento" onClick={() => onEditCashMovement(asset.id, m.id)}>
+                            <Pencil />
+                          </Button>
+                          <Button variant="ghost" size="icon-sm" aria-label="Elimina movimento" onClick={() => onDeleteCashMovement(asset.id, m.id)}>
+                            <X />
+                          </Button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
+            )}
             <section>
-              <h3 className="mb-2 text-sm font-semibold">Storico</h3>
+              <h3 className="mb-2 text-sm font-semibold">{asset.type === 'Conto Bancario' ? 'Saldi registrati' : 'Storico'}</h3>
               {balances.length > 1 && <BalanceSparkline points={[...balances].reverse()} currency={asset.currency} />}
               <ul className="divide-y rounded-lg border">
                 {balances.map(b => (
@@ -198,6 +254,7 @@ export function AssetDetailSheet({ holding, open, onOpenChange, onAction, onEdit
                 ))}
               </ul>
             </section>
+            </>
           )}
         </div>
       </SheetContent>

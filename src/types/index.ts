@@ -36,6 +36,20 @@ export interface Transaction {
 export interface BalanceSnapshot {
   date: string;
   value: number;
+  /** Momento della registrazione (ISO): distingue i movimenti dello stesso giorno inseriti prima o dopo */
+  at?: string;
+}
+
+/** Entrata o uscita su un conto corrente, inserita a mano. */
+export interface CashMovement {
+  id: string;
+  /** yyyy-MM-dd */
+  date: string;
+  /** Importo con segno: positivo per le entrate, negativo per le uscite */
+  amount: number;
+  description?: string;
+  /** Momento dell'inserimento (ISO) */
+  createdAt: string;
 }
 
 export interface Asset {
@@ -68,6 +82,8 @@ export interface Asset {
 
   // --- Conti e beni a valore manuale -----------------------------------------
   balanceHistory?: BalanceSnapshot[];
+  /** Entrate e uscite dei conti correnti, sommate al saldo dopo l'ultimo saldo registrato */
+  cashMovements?: CashMovement[];
 
   // --- Conto deposito --------------------------------------------------------
   /** Tasso lordo annuo in percentuale (es. 3.5 = 3,5%) */

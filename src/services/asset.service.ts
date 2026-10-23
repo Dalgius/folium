@@ -1,7 +1,7 @@
 import { db, auth } from '@/lib/firebase';
-import type { Asset, BalanceSnapshot, NewAsset, Transaction } from '@/types';
+import type { Asset, BalanceSnapshot, CashMovement, NewAsset, Transaction } from '@/types';
 import { isMarketAsset } from '@/lib/asset-types';
-import { computePosition, dayKey, latestBalance, lastPrice, sortBalances, sortTransactions } from '@/lib/portfolio';
+import { computePosition, dayKey, latestBalance, lastPrice, sortBalances, sortCashMovements, sortTransactions } from '@/lib/portfolio';
 import { parseISO } from 'date-fns';
 import {
   collection,
@@ -92,6 +92,7 @@ function fromFirestore(snap: QueryDocumentSnapshot<DocumentData>): Asset {
     asset.balanceHistory = Array.isArray(data.balanceHistory)
       ? sortBalances(data.balanceHistory as BalanceSnapshot[])
       : [{ date: dayKey(purchaseDate) ?? dayKey(new Date())!, value: asset.currentValue }];
+    if (Array.isArray(data.cashMovements)) asset.cashMovements = sortCashMovements(data.cashMovements as CashMovement[]);
   }
 
   return asset;
@@ -114,6 +115,7 @@ function withDerivedFields(asset: Partial<NewAsset> & Pick<NewAsset, 'type'>): D
   } else if (asset.balanceHistory) {
     const history = sortBalances(asset.balanceHistory);
     data.balanceHistory = history;
+    if (asset.cashMovements) data.cashMovements = sortCashMovements(asset.cashMovements);
     data.initialValue = history[0]?.value ?? 0;
     data.currentValue = latestBalance({ ...(asset as Asset), balanceHistory: history });
     data.purchaseDate = history[0] ? parseISO(history[0].date) : new Date();
@@ -124,6 +126,7 @@ function withDerivedFields(asset: Partial<NewAsset> & Pick<NewAsset, 'type'>): D
   // Firestore non accetta valori undefined negli oggetti annidati
   if (Array.isArray(data.transactions)) data.transactions = data.transactions.map(stripUndefined);
   if (Array.isArray(data.balanceHistory)) data.balanceHistory = data.balanceHistory.map(stripUndefined);
+  if (Array.isArray(data.cashMovements)) data.cashMovements = data.cashMovements.map(stripUndefined);
   delete data.id;
   delete data.userId;
   return data;
