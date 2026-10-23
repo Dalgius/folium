@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react';
 import type { Asset, AssetType, BalanceSnapshot } from '@/types';
 import { isMarketAsset } from '@/lib/asset-types';
 import { latestBalance, sortBalances } from '@/lib/portfolio';
-import { parseDecimal, toInput, todayInput } from '@/lib/forms';
+import { parseAmount, toInput, todayInput } from '@/lib/forms';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,8 +29,6 @@ interface BalancesDialogProps {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-/** Come parseDecimal, ma negli importi "4.000" o "12.500" sono migliaia, non decimali. */
-const parseAmount = (raw: string) => parseDecimal(/^\s*-?\d{1,3}(\.\d{3})+\s*$/.test(raw) ? raw.replace(/\./g, '') : raw);
 
 /** Aggiornamento dei saldi di tutti i conti in un'unica finestra (routine di inizio mese). */
 export function BalancesDialog({ assets, open, onOpenChange, onSubmit }: BalancesDialogProps) {
@@ -86,7 +84,10 @@ export function BalancesDialog({ assets, open, onOpenChange, onSubmit }: Balance
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Aggiorna saldi</DialogTitle>
-          <DialogDescription>Scrivi i saldi nuovi: vengono salvati solo quelli che cambi, tutti alla stessa data.</DialogDescription>
+          <DialogDescription>
+            Scrivi i saldi nuovi: vengono salvati solo quelli che cambi, tutti alla stessa data.
+            Per i conti correnti la differenza diventa una riga «Allineamento» tra i movimenti.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={submit} className="min-w-0 space-y-4">

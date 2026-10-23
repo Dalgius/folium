@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import type { Asset, CashMovement } from '@/types';
 import { dayKey, latestBalance } from '@/lib/portfolio';
-import { notInFuture, parseDecimal, requiredDate, requiredNumber, toInput, todayInput } from '@/lib/forms';
+import { notInFuture, parseAmount, requiredDate, requiredNumber, toInput, todayInput } from '@/lib/forms';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Form } from '@/components/ui/form';
 import { Button } from '@/components/ui/button';
@@ -55,7 +55,7 @@ export function CashMovementDialog({ asset, movement, open, onOpenChange, onSubm
   if (!asset) return null;
 
   async function submit(v: Values) {
-    const value = parseDecimal(v.amount);
+    const value = parseAmount(v.amount);
     const ok = await onSubmit(
       asset!.id,
       { date: v.date, amount: direction === 'in' ? value : -value, description: v.description || undefined },

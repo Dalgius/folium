@@ -9,7 +9,7 @@ import {
   notInFuture,
   optionalNumber,
   optionalNumberValue,
-  parseDecimal,
+  parseAmount,
   requiredDate,
   requiredNumber,
   toInput,
@@ -106,7 +106,7 @@ export function AccountForm({ type, asset, onSubmit, onBack }: AccountFormProps)
       return;
     }
 
-    const balance = parseDecimal(v.balance);
+    const balance = parseAmount(v.balance);
     const created: NewAsset = {
       ...details,
       name: v.name,
@@ -129,12 +129,19 @@ export function AccountForm({ type, asset, onSubmit, onBack }: AccountFormProps)
 
         {!isEdit && (
           <div className="grid grid-cols-[1fr_110px] gap-3">
-            <TextField control={form.control} name="balance" label={isDeposit ? 'Capitale depositato' : type === 'Altro' ? 'Valore attuale' : 'Saldo attuale'} inputMode="decimal" placeholder="0,00" />
+            <TextField control={form.control} name="balance" label={isDeposit ? 'Capitale depositato' : type === 'Altro' ? 'Valore attuale' : 'Saldo iniziale'} inputMode="decimal" placeholder="0,00" />
             <CurrencyField control={form.control} name="currency" label="Valuta" />
           </div>
         )}
         {!isEdit && (
-          <TextField control={form.control} name="balanceDate" label="Data del saldo" type="date" max={todayInput()} />
+          <TextField
+            control={form.control}
+            name="balanceDate"
+            label={type === 'Conto Bancario' ? 'Data del saldo iniziale' : 'Data del saldo'}
+            type="date"
+            max={todayInput()}
+            description={type === 'Conto Bancario' ? 'Da questa data registra entrate e uscite: il saldo sarà la loro somma.' : undefined}
+          />
         )}
 
         {isDeposit && (

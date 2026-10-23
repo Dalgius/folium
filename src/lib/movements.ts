@@ -2,7 +2,7 @@ import type { Asset, AssetType } from '@/types';
 import { isMarketAsset } from '@/lib/asset-types';
 import { dayKey, sortBalances } from '@/lib/portfolio';
 
-export type MovementKind = 'buy' | 'sell' | 'balance' | 'opening' | 'income' | 'expense';
+export type MovementKind = 'buy' | 'sell' | 'balance' | 'opening' | 'income' | 'expense' | 'adjustment';
 
 /** Un evento nella storia del patrimonio: un'operazione su un titolo o un saldo registrato. */
 export interface Movement {
@@ -26,7 +26,7 @@ export interface Movement {
 }
 
 export const isTrade = (m: Movement) => m.kind === 'buy' || m.kind === 'sell';
-export const isCashFlow = (m: Movement) => m.kind === 'income' || m.kind === 'expense';
+export const isCashFlow = (m: Movement) => m.kind === 'income' || m.kind === 'expense' || m.kind === 'adjustment';
 
 /** Tutti i movimenti, dal più recente. */
 export function buildMovements(assets: Asset[]): Movement[] {
@@ -64,7 +64,7 @@ export function buildMovements(assets: Asset[]): Movement[] {
           ...base,
           id: `${asset.id}:${m.id}`,
           date: dayKey(m.date) ?? m.date,
-          kind: m.amount >= 0 ? 'income' : 'expense',
+          kind: m.kind === 'adjustment' ? 'adjustment' : m.amount >= 0 ? 'income' : 'expense',
           amount: m.amount,
           description: m.description,
         });
@@ -78,9 +78,10 @@ export const MOVEMENT_LABEL: Record<MovementKind, string> = {
   buy: 'Acquisto',
   sell: 'Vendita',
   balance: 'Saldo',
-  opening: 'Apertura',
+  opening: 'Saldo iniziale',
   income: 'Entrata',
   expense: 'Uscita',
+  adjustment: 'Allineamento',
 };
 
 const csvNumber = (n: number | undefined) => (n === undefined ? '' : String(Math.round(n * 1e6) / 1e6).replace('.', ','));

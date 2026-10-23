@@ -158,6 +158,61 @@ export function coveringSnapshot(sortedHistory: BalanceSnapshot[], movement: Cas
   return sortedHistory.find(s => coveredBy(s, movement)) ?? null;
 }
 
+export interface LedgerEntry {
+  key: string;
+  kind: 'opening' | 'snapshot' | 'movement' | 'adjustment';
+  date: string;
+  /** Variazione portata dalla riga (per il saldo iniziale: il saldo stesso) */
+  amount: number;
+  /** Saldo dopo la riga; null per i movimenti precedenti al saldo iniziale */
+  balance: number | null;
+  description?: string;
+  movementId?: string;
+  /** Movimento datato prima del saldo iniziale: non conteggiato */
+  excluded?: boolean;
+}
+
+/**
+ * Libro del conto in ordine cronologico, con il saldo progressivo:
+ * saldo iniziale + entrate − uscite (+ allineamenti). Gli eventuali saldi registrati
+ * dopo il primo (dati precedenti al libro dei movimenti) riallineano il saldo.
+ */
+export function accountLedger(asset: Asset): LedgerEntry[] {
+  const history = sortBalances(asset.balanceHistory);
+  type Event = { day: string; stamp: string; snapshot?: BalanceSnapshot; movement?: CashMovement };
+  const events: Event[] = [
+    // I saldi senza ora valgono come registrati a inizio giornata
+    ...history.map(s => ({ day: dayKey(s.date) ?? s.date, stamp: s.at ?? '', snapshot: s })),
+    ...(asset.cashMovements ?? []).map(m => ({ day: dayKey(m.date) ?? m.date, stamp: m.createdAt, movement: m })),
+  ].sort((a, b) => a.day.localeCompare(b.day) || a.stamp.localeCompare(b.stamp));
+
+  const entries: LedgerEntry[] = [];
+  let balance: number | null = null;
+  for (const e of events) {
+    if (e.snapshot) {
+      const opening = balance === null;
+      const amount = opening ? e.snapshot.value : e.snapshot.value - balance!;
+      balance = e.snapshot.value;
+      entries.push({ key: `s:${e.snapshot.date}`, kind: opening ? 'opening' : 'snapshot', date: e.day, amount, balance });
+    } else if (e.movement) {
+      const m = e.movement;
+      if (balance === null) {
+        entries.push({ key: `m:${m.id}`, kind: m.kind === 'adjustment' ? 'adjustment' : 'movement', date: e.day, amount: m.amount, balance: null, description: m.description, movementId: m.id, excluded: true });
+        continue;
+      }
+      balance += m.amount;
+      entries.push({ key: `m:${m.id}`, kind: m.kind === 'adjustment' ? 'adjustment' : 'movement', date: e.day, amount: m.amount, balance, description: m.description, movementId: m.id });
+    }
+  }
+  return entries;
+}
+
+/** Importo dell'allineamento che porta il saldo calcolato a quello indicato dalla banca. */
+export function adjustmentFor(asset: Asset, date: string, target: number): number {
+  const current = accountBalanceAt(sortBalances(asset.balanceHistory), asset.cashMovements, date);
+  return Math.round((target - current) * 100) / 100;
+}
+
 export function sortCashMovements(movements: CashMovement[] = []): CashMovement[] {
   return [...movements].sort((a, b) => (dayKey(a.date) ?? '').localeCompare(dayKey(b.date) ?? '') || a.createdAt.localeCompare(b.createdAt));
 }

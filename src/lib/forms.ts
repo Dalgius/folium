@@ -10,6 +10,15 @@ export function parseDecimal(value: string | number | undefined | null): number 
   return s === '' ? NaN : Number(s);
 }
 
+/**
+ * Come parseDecimal, ma per gli importi in euro: "1.800" o "12.500" sono migliaia
+ * (scrittura italiana), non decimali. Non va usata per prezzi e quantità.
+ */
+export function parseAmount(value: string | number | undefined | null): number {
+  if (typeof value === 'string' && /^\s*-?\d{1,3}(\.\d{3})+\s*$/.test(value)) return parseDecimal(value.replace(/\./g, ''));
+  return parseDecimal(value);
+}
+
 /** Numero come stringa nel formato italiano, per precompilare i campi. */
 export function toInput(value: number | undefined | null, maxDigits = 6): string {
   if (value === undefined || value === null || Number.isNaN(value)) return '';

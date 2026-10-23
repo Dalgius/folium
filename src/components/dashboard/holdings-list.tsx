@@ -6,7 +6,7 @@ import { it } from 'date-fns/locale';
 import { ArrowDownUp, ArrowLeftRight, CalendarDays, ChevronDown, MoreHorizontal, Pencil, PencilLine, Search, SearchX, Trash2, Wallet, Clock } from 'lucide-react';
 import type { Holding } from '@/lib/portfolio';
 import { GROUP_LABEL, typeMeta, type AssetGroup } from '@/lib/asset-types';
-import { coveringSnapshot, isStale, latestBalance, sortBalances } from '@/lib/portfolio';
+import { isStale, latestBalance, sortBalances } from '@/lib/portfolio';
 import { Money } from '@/components/money';
 import { Trend } from '@/components/trend';
 import { AssetBadge } from '@/components/asset-icons';
@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn, formatNumber, formatPercent } from '@/lib/utils';
 
-export type HoldingAction = 'details' | 'transaction' | 'balance' | 'cash' | 'edit' | 'delete';
+export type HoldingAction = 'details' | 'transaction' | 'balance' | 'cash' | 'restart' | 'edit' | 'delete';
 
 type Filter = 'all' | AssetGroup;
 type Sort = 'value' | 'name' | 'performance' | 'day';
@@ -245,11 +245,14 @@ function HoldingRow({ holding: h, onAction }: { holding: Holding; onAction: Hold
   } else {
     const history = sortBalances(asset.balanceHistory);
     const last = history[history.length - 1];
-    if (last) {
+    const movements = asset.type === 'Conto Bancario' ? asset.cashMovements ?? [] : [];
+    if (movements.length) {
+      // Conto corrente: il saldo è la somma dei movimenti
+      const lastDay = movements.reduce((max, m) => (m.date > max ? m.date : max), movements[0].date);
+      detail = <span className="text-muted-foreground">{movements.length === 1 ? '1 movimento' : `${movements.length} movimenti`}</span>;
+      detailSub = <span>ultimo il {format(parseISO(lastDay), 'dd/MM/yyyy')}</span>;
+    } else if (last) {
       detail = <span className="text-muted-foreground">Saldo al {format(parseISO(last.date), 'dd/MM/yyyy')}</span>;
-      // Entrate e uscite inserite dopo l'ultimo saldo registrato, già sommate al valore
-      const after = (asset.cashMovements ?? []).filter(m => !coveringSnapshot(history, m)).length;
-      if (after) detailSub = <span>+ {after === 1 ? '1 movimento successivo' : `${after} movimenti successivi`}</span>;
     }
     const change = h.group === 'other' ? manualChange(h) : null;
     if (change) {
@@ -355,7 +358,7 @@ export function RowMenu({ holding: h, onAction }: { holding: Holding; onAction: 
               </DropdownMenuItem>
             )}
             <DropdownMenuItem onSelect={() => onAction('balance', h.asset.id)}>
-              <Wallet className="mr-2 h-4 w-4" /> {h.asset.type === 'Altro' ? 'Aggiorna valore' : 'Aggiorna saldo'}
+              <Wallet className="mr-2 h-4 w-4" /> {h.asset.type === 'Altro' ? 'Aggiorna valore' : h.asset.type === 'Conto Bancario' ? 'Allinea saldo' : 'Aggiorna saldo'}
             </DropdownMenuItem>
           </>
         )}

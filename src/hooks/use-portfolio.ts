@@ -3,7 +3,7 @@
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Asset, BalanceSnapshot, CashMovement, NewAsset, Transaction } from '@/types';
 import { isMarketAsset } from '@/lib/asset-types';
-import { buildHoldings, computePosition, summarize, upsertBalance, type FxRates } from '@/lib/portfolio';
+import { adjustmentFor, buildHoldings, computePosition, summarize, upsertBalance, type FxRates } from '@/lib/portfolio';
 import { addAsset, deleteAsset, getAssets, newId, saveAsset, saveAssets, savePrices } from '@/services/asset.service';
 import { getExchangeRates, getQuotes } from '@/lib/market';
 import { useAuth } from '@/hooks/use-auth';
@@ -379,11 +379,49 @@ export function usePortfolio() {
     [deleteWithUndo],
   );
 
+  /**
+   * Nuovo saldo di un conto. Per i conti corrente il saldo è la somma dei movimenti:
+   * la differenza con il saldo della banca diventa una riga di allineamento.
+   * Restituisce l'asset aggiornato, o null se non c'è nulla da cambiare.
+   */
+  const withBalance = (asset: Asset, snapshot: BalanceSnapshot): Asset | null => {
+    if (asset.type !== 'Conto Bancario') return { ...asset, balanceHistory: upsertBalance(asset.balanceHistory, snapshot) };
+    const amount = adjustmentFor(asset, snapshot.date, snapshot.value);
+    if (amount === 0) return null;
+    const adjustment: CashMovement = {
+      id: newId(),
+      kind: 'adjustment',
+      date: snapshot.date,
+      amount,
+      description: 'Allineamento con la banca',
+      createdAt: new Date().toISOString(),
+    };
+    return { ...asset, cashMovements: [...(asset.cashMovements ?? []), adjustment] };
+  };
+
   const setBalance = useCallback(
     async (assetId: string, snapshot: BalanceSnapshot) => {
       const asset = findAsset(assetId);
       if (!asset) return false;
-      return persist({ ...asset, balanceHistory: upsertBalance(asset.balanceHistory, snapshot) }, 'Saldo aggiornato');
+      const next = withBalance(asset, snapshot);
+      if (!next) {
+        toast({ title: 'Il saldo è già allineato' });
+        return true;
+      }
+      return persist(next, asset.type === 'Conto Bancario' ? 'Saldo allineato' : 'Saldo aggiornato');
+    },
+    [persist, toast],
+  );
+
+  /** Riparte da un saldo iniziale: i saldi registrati del conto vengono sostituiti, i movimenti restano. */
+  const restartLedger = useCallback(
+    async (assetId: string, opening: BalanceSnapshot) => {
+      const asset = findAsset(assetId);
+      if (!asset) return false;
+      return persist(
+        { ...asset, balanceHistory: [{ date: opening.date, value: opening.value, at: new Date().toISOString() }] },
+        'Saldo iniziale impostato',
+      );
     },
     [persist],
   );
@@ -453,7 +491,8 @@ export function usePortfolio() {
     async (entries: { assetId: string; snapshot: BalanceSnapshot }[]) => {
       const list = entries.flatMap(({ assetId, snapshot }) => {
         const asset = findAsset(assetId);
-        return asset ? [{ ...asset, balanceHistory: upsertBalance(asset.balanceHistory, snapshot) }] : [];
+        const next = asset ? withBalance(asset, snapshot) : null;
+        return next ? [next] : [];
       });
       const n = list.length;
       return persistMany(list, n === 1 ? 'Saldo aggiornato' : `Saldi aggiornati (${n})`, 'Impossibile aggiornare i saldi.');
@@ -505,6 +544,7 @@ export function usePortfolio() {
     deleteTransaction,
     setBalance,
     setBalances,
+    restartLedger,
     addCashMovement,
     updateCashMovement,
     deleteCashMovement,

@@ -50,6 +50,8 @@ export interface CashMovement {
   description?: string;
   /** Momento dell'inserimento (ISO) */
   createdAt: string;
+  /** "adjustment": allineamento con il saldo della banca */
+  kind?: 'adjustment';
 }
 
 export interface Asset {
