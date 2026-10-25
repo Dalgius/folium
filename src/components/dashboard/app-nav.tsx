@@ -34,10 +34,17 @@ export function AppNav({ tab, onChange }: AppNavProps) {
           'flex items-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           variant === 'top'
             ? cn('h-11 gap-2 border-b-2 px-1 text-sm', active ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground')
-            : cn('h-14 flex-1 flex-col justify-center gap-1 rounded-md text-[11px]', active ? 'text-primary' : 'text-muted-foreground'),
+            : cn('h-16 flex-1 flex-col justify-center gap-0.5 rounded-md text-[11px]', active ? 'text-primary' : 'text-muted-foreground'),
         )}
       >
-        <Icon className={variant === 'top' ? 'h-4 w-4' : 'h-5 w-5'} aria-hidden />
+        {variant === 'top' ? (
+          <Icon className="h-4 w-4" aria-hidden />
+        ) : (
+          // Su mobile la voce attiva ha l'icona dentro una pillola, come nel mockup
+          <span className={cn('flex h-7 w-14 items-center justify-center rounded-full transition-colors', active && 'bg-accent')}>
+            <Icon className="h-5 w-5" aria-hidden />
+          </span>
+        )}
         {item.label}
       </a>
     );

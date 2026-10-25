@@ -35,7 +35,7 @@ export function Segmented<T extends string>({ options, value, onChange, size = '
       role="radiogroup"
       aria-label={ariaLabel}
       onKeyDown={onKeyDown}
-      className={cn('inline-flex max-w-full overflow-x-auto rounded-lg bg-muted p-1', className)}
+      className={cn('no-scrollbar inline-flex max-w-full overflow-x-auto rounded-full bg-muted p-1', className)}
     >
       {options.map((option, i) => {
         const selected = i === selectedIndex;
@@ -51,9 +51,9 @@ export function Segmented<T extends string>({ options, value, onChange, size = '
             tabIndex={selected || (selectedIndex < 0 && i === 0) ? 0 : -1}
             onClick={() => onChange(option.value)}
             className={cn(
-              'shrink-0 rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              size === 'sm' ? 'h-7 px-2.5 text-xs' : 'h-8 px-3 text-sm',
-              selected ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+              'shrink-0 rounded-full font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              size === 'sm' ? 'h-7 px-3 text-xs' : 'h-8 px-3.5 text-sm',
+              selected ? 'bg-card text-foreground shadow-sm dark:bg-accent' : 'text-muted-foreground hover:text-foreground',
             )}
           >
             {option.label}

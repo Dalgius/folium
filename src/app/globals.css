@@ -3,32 +3,32 @@
 @tailwind utilities;
 
 @layer base {
+  /* Folium Minimal Wealth (proposta Stitch): pietra, indaco, smeraldo e rosa */
   :root {
-    --background: 220 23% 97%;
-    --foreground: 226 32% 13%;
+    --background: 210 17% 98%;
+    --foreground: 222 47% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 226 32% 13%;
+    --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 226 32% 13%;
-    /* Indaco del logo Folium (#4252b5) */
-    --primary: 232 47% 48%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 231 61% 48%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 225 25% 94%;
-    --secondary-foreground: 226 32% 18%;
-    --muted: 225 22% 95%;
-    --muted-foreground: 223 11% 43%;
-    --accent: 230 45% 95%;
-    --accent-foreground: 232 47% 38%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 224 18% 90%;
-    --input: 224 16% 86%;
-    --ring: 232 47% 48%;
+    --secondary: 210 17% 95%;
+    --secondary-foreground: 222 47% 18%;
+    --muted: 210 17% 95%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 221 100% 97%;
+    --accent-foreground: 232 63% 40%;
+    --destructive: 345 83% 41%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 210 16% 93%;
+    --input: 213 15% 88%;
+    --ring: 231 61% 48%;
     --radius: 0.75rem;
 
-    /* Variazioni positive / negative (testo, sempre affiancate da segno e icona) */
-    --positive: 145 70% 28%;
-    --negative: 0 66% 46%;
+    /* Variazioni positive / negative (testo, sempre affiancate da segno e icona; contrasto ≥ 4,5:1) */
+    --positive: 161 100% 21%;
+    --negative: 345 83% 41%;
 
     /* Palette categoriale (validata per daltonismo, ordine fisso) */
     --cat-1: 213 68% 50%;
@@ -40,32 +40,33 @@
     --cat-7: 248 62% 58%;
 
     --chart-1: var(--primary);
-    --chart-grid: 224 18% 92%;
+    --chart-grid: 216 17% 94%;
   }
 
+  /* Obsidian Wealth: blu notte e cobalto */
   .dark {
-    --background: 224 22% 7%;
-    --foreground: 220 20% 93%;
-    --card: 222 20% 10%;
-    --card-foreground: 220 20% 93%;
-    --popover: 222 20% 11%;
-    --popover-foreground: 220 20% 93%;
-    --primary: 231 75% 72%;
-    --primary-foreground: 226 40% 10%;
-    --secondary: 222 16% 16%;
-    --secondary-foreground: 220 20% 93%;
-    --muted: 222 16% 14%;
-    --muted-foreground: 220 10% 62%;
-    --accent: 230 30% 18%;
-    --accent-foreground: 231 75% 80%;
-    --destructive: 0 65% 52%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 222 15% 17%;
-    --input: 222 14% 22%;
-    --ring: 231 75% 72%;
+    --background: 223 39% 7%;
+    --foreground: 210 20% 98%;
+    --card: 219 37% 14%;
+    --card-foreground: 210 20% 98%;
+    --popover: 217 33% 17%;
+    --popover-foreground: 210 20% 98%;
+    --primary: 230 100% 72%;
+    --primary-foreground: 223 39% 7%;
+    --secondary: 219 33% 16%;
+    --secondary-foreground: 210 20% 98%;
+    --muted: 219 33% 16%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 222 41% 20%;
+    --accent-foreground: 232 100% 86%;
+    --destructive: 351 95% 71%;
+    --destructive-foreground: 223 39% 7%;
+    --border: 216 29% 22%;
+    --input: 215 25% 27%;
+    --ring: 230 100% 72%;
 
-    --positive: 145 58% 55%;
-    --negative: 0 82% 70%;
+    --positive: 158 64% 52%;
+    --negative: 351 95% 71%;
 
     --cat-1: 213 77% 56%;
     --cat-2: 17 70% 50%;
@@ -75,7 +76,7 @@
     --cat-6: 120 100% 26%;
     --cat-7: 247 69% 72%;
 
-    --chart-grid: 222 15% 15%;
+    --chart-grid: 217 33% 17%;
   }
 }
 
@@ -88,7 +89,6 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: 'cv11', 'ss01';
   }
 }
 
@@ -96,5 +96,26 @@
   /* Cifre a larghezza fissa per gli importi allineati */
   .tabular {
     font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' on;
+  }
+  /* Card e pannelli: ombre leggerissime, più marcate per menu e fumetti */
+  .shadow-card {
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.02);
+  }
+  .shadow-popover {
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  }
+  .dark .shadow-card {
+    box-shadow: none;
+  }
+  .dark .shadow-popover {
+    box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.65), 0 0 16px 0 rgba(79, 107, 245, 0.08);
+  }
+  /* Scorrimento orizzontale senza barra visibile (carosello degli indicatori) */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
   }
 }

@@ -43,9 +43,9 @@ export function NetWorthChangeCard({ assets, fx }: NetWorthChangeCardProps) {
   if (!loading && periods.every(p => !p.result)) return null;
 
   return (
-    <Card className="grid grid-cols-1 divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+    <div className="grid grid-cols-2 gap-3 sm:gap-4">
       {periods.map(p => (
-        <section key={p.key} className="p-5" aria-label={p.title}>
+        <Card key={p.key} className="p-3.5 sm:p-5" role="region" aria-label={p.title}>
           {loading ? (
             <div className="space-y-3">
               <Skeleton className="h-4 w-28" />
@@ -56,9 +56,9 @@ export function NetWorthChangeCard({ assets, fx }: NetWorthChangeCardProps) {
           ) : (
             <Period title={p.title} startOfPeriod={p.startOfPeriod} result={p.result} />
           )}
-        </section>
+        </Card>
       ))}
-    </Card>
+    </div>
   );
 }
 
@@ -79,17 +79,24 @@ function Period({ title, startOfPeriod, result }: { title: string; startOfPeriod
         {title}
         {late && <span className="font-normal"> · dal {format(parseISO(result.since), 'd MMM', { locale: it })}</span>}
       </h2>
-      <Trend value={result.change} pct={result.pct} className="mt-1.5 text-xl font-semibold" />
-      <dl className="mt-3 space-y-1.5 text-sm">
-        <div className="flex items-center justify-between gap-3">
-          <dt className="flex items-center gap-1.5 text-muted-foreground">
-            Rendimento dei mercati <InfoHint text={HINTS.market} />
+      {/* Su smartphone importo e percentuale vanno a capo per stare nella mezza card */}
+      <Trend value={result.change} className="mt-1.5 text-base font-semibold sm:hidden" />
+      <Trend pct={result.pct} showIcon={false} className="block text-xs sm:hidden" />
+      <Trend value={result.change} pct={result.pct} className="mt-1.5 hidden text-xl font-semibold sm:inline-flex" />
+      <dl className="mt-3 space-y-1.5 text-xs sm:text-sm">
+        <div className="flex items-center justify-between gap-2 sm:gap-3">
+          <dt className="flex items-center gap-1 text-muted-foreground sm:gap-1.5">
+            <span className="sm:hidden">Mercati</span>
+            <span className="hidden sm:inline">Rendimento dei mercati</span>
+            <InfoHint text={HINTS.market} />
           </dt>
           <dd><Money value={result.market} signed className="font-medium" /></dd>
         </div>
-        <div className="flex items-center justify-between gap-3">
-          <dt className="flex items-center gap-1.5 text-muted-foreground">
-            Risparmi e altre variazioni <InfoHint text={HINTS.savings} />
+        <div className="flex items-center justify-between gap-2 sm:gap-3">
+          <dt className="flex items-center gap-1 text-muted-foreground sm:gap-1.5">
+            <span className="sm:hidden">Risparmi</span>
+            <span className="hidden sm:inline">Risparmi e altre variazioni</span>
+            <InfoHint text={HINTS.savings} />
           </dt>
           <dd><Money value={result.other} signed className="font-medium" /></dd>
         </div>
