@@ -23,10 +23,10 @@ function StatCard({ label, children, footer, className }: { label: ReactNode; ch
   );
 }
 
-/** Indicatore compatto della fila scorrevole su smartphone. */
-function KpiChip({ label, children }: { label: ReactNode; children: ReactNode }) {
+/** Indicatore compatto della griglia su smartphone. */
+function KpiChip({ label, children, className }: { label: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <div role="listitem" className="min-w-[46%] shrink-0 snap-start rounded-xl bg-accent/70 p-3 dark:bg-muted">
+    <div role="listitem" className={cn('min-w-0 rounded-xl bg-accent/70 p-3 dark:bg-muted', className)}>
       <p className="mb-1.5 flex items-center gap-1 text-xs font-medium text-muted-foreground">{label}</p>
       {children}
     </div>
@@ -63,7 +63,7 @@ export function StatCards({ summary, loading, dayLabel = 'oggi' }: StatCardsProp
 
   return (
     <div className="space-y-3">
-      {/* Smartphone: patrimonio in evidenza e indicatori in una fila scorrevole */}
+      {/* Smartphone: patrimonio in evidenza e indicatori in una griglia 2×2, tutti a colpo d'occhio */}
       <Card className="p-4 sm:hidden">
         <p className="text-sm font-medium text-muted-foreground">Patrimonio netto</p>
         <Money value={netWorth} className="mt-1 block text-[28px] font-bold leading-9 tracking-tight" />
@@ -77,7 +77,7 @@ export function StatCards({ summary, loading, dayLabel = 'oggi' }: StatCardsProp
             <span>Conti e investimenti</span>
           )}
         </p>
-        <div className="no-scrollbar -mx-4 mt-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1" role="list" aria-label="Indicatori">
+        <div className="mt-4 grid grid-cols-2 gap-2" role="list" aria-label="Indicatori">
           <KpiChip label="Liquidità">
             <Money value={liquidity} className="text-lg font-semibold" />
             <span className="block text-xs text-muted-foreground">
@@ -91,7 +91,7 @@ export function StatCards({ summary, loading, dayLabel = 'oggi' }: StatCardsProp
               {hasDayChange && <span className="text-muted-foreground"> {dayLabel}</span>}
             </span>
           </KpiChip>
-          <KpiChip label={<>Plusvalenze latenti <InfoHint text={HINTS.unrealized} /></>}>
+          <KpiChip label={<>Plusvalenze latenti <InfoHint text={HINTS.unrealized} /></>} className={lockedLiquidity > 0 ? undefined : 'col-span-2'}>
             <Trend pct={unrealizedPLPct} className="text-lg font-semibold" />
             <span className="block text-xs text-muted-foreground">su <Money value={investedCost} /> investiti</span>
           </KpiChip>
