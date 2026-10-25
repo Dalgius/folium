@@ -92,8 +92,10 @@ export function StatCards({ summary, loading, dayLabel = 'oggi' }: StatCardsProp
             </span>
           </KpiChip>
           <KpiChip label={<>Plusvalenze latenti <InfoHint text={HINTS.unrealized} /></>} className={lockedLiquidity > 0 ? undefined : 'col-span-2'}>
-            <Trend pct={unrealizedPLPct} className="text-lg font-semibold" />
-            <span className="block text-xs text-muted-foreground">su <Money value={investedCost} /> investiti</span>
+            <Trend value={unrealizedPL} showIcon={false} className="text-lg font-semibold" />
+            <span className="block text-xs">
+              <Trend pct={unrealizedPLPct} /> <span className="text-muted-foreground">su <Money value={investedCost} /> investiti</span>
+            </span>
           </KpiChip>
           {lockedLiquidity > 0 && (
             <KpiChip label={<>Liquidità vincolata <InfoHint text={HINTS.locked} /></>}>
