@@ -110,13 +110,18 @@ export function AllocationCard({ holdings, loading }: { holdings: Holding[]; loa
             </div>
           </TooltipProvider>
 
-          <ul className="mt-5 space-y-3">
+          {/* Smartphone: riquadri su due colonne; schermi larghi: elenco con valore e percentuale */}
+          <ul className="mt-5 grid grid-cols-2 gap-2 sm:block sm:space-y-3">
             {allocation.map(slice => (
-              <li key={slice.key} className="flex items-center gap-3 text-sm">
-                <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: slice.color }} aria-hidden />
-                <span className="flex-1 truncate">{slice.label}</span>
-                <Money value={slice.value} className="text-muted-foreground" />
-                <span className="w-14 text-right font-medium tabular">{formatPercent(slice.share, { signed: false, digits: 1 })}</span>
+              <li key={slice.key} className="min-w-0 rounded-xl bg-muted/70 p-2.5 text-sm sm:flex sm:items-center sm:gap-3 sm:rounded-none sm:bg-transparent sm:p-0">
+                <span className="flex min-w-0 items-center gap-2 sm:flex-1 sm:gap-3">
+                  <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: slice.color }} aria-hidden />
+                  <span className="truncate">{slice.label}</span>
+                </span>
+                <span className="mt-0.5 flex items-baseline gap-2 pl-[18px] text-xs sm:mt-0 sm:flex-row-reverse sm:gap-3 sm:pl-0 sm:text-sm">
+                  <span className="font-medium tabular sm:w-14 sm:text-right">{formatPercent(slice.share, { signed: false, digits: 1 })}</span>
+                  <Money value={slice.value} className="text-muted-foreground" />
+                </span>
               </li>
             ))}
           </ul>

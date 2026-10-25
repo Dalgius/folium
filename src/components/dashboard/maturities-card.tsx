@@ -19,9 +19,14 @@ export function MaturitiesCard({ holdings, onSelect }: { holdings: Holding[]; on
 
   return (
     <Card className="p-5">
-      <div className="flex items-center gap-2">
-        <CalendarClock className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-base font-semibold">Scadenze vincoli</h2>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <CalendarClock className="h-4 w-4 text-primary" />
+          <h2 className="text-base font-semibold">Scadenze vincoli</h2>
+        </div>
+        <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+          {deposits.length === 1 ? '1 attivo' : `${deposits.length} attivi`}
+        </span>
       </div>
       <ul className="mt-4 space-y-4">
         {deposits.map(({ asset, deposit }) => {
@@ -39,7 +44,7 @@ export function MaturitiesCard({ holdings, onSelect }: { holdings: Holding[]; on
                 <div className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
                   <span>{format(parseISO(asset.maturityDate!), 'd MMM yyyy', { locale: it })} · {asset.interestRate?.toLocaleString('it-IT')}% lordo</span>
                   {deposit!.atMaturityNet !== null && (
-                    <span>interessi netti <Money value={deposit!.atMaturityNet} currency={asset.currency} className="text-positive" signed /></span>
+                    <span>interessi netti stimati <Money value={deposit!.atMaturityNet} currency={asset.currency} className="text-positive" signed /></span>
                   )}
                 </div>
               </button>
