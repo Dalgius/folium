@@ -443,6 +443,8 @@ export interface PortfolioSummary {
   lockedLiquidity: number;
   /** Scadenza del vincolo più vicina (yyyy-MM-dd) */
   nextUnlock: string | null;
+  /** Scadenza del vincolo più lontana: da quel giorno tutta la liquidità vincolata è disponibile */
+  lastUnlock: string | null;
   /** Interessi netti attesi a scadenza sui depositi vincolati (stima, al netto della ritenuta) */
   lockedInterestNet: number;
   allocation: AllocationSlice[];
@@ -456,6 +458,7 @@ export function summarize(holdings: Holding[], today: string = todayKey()): Port
   let liquidity = 0, investments = 0, other = 0, investedCost = 0, realizedPL = 0;
   let dayChange = 0, accruedInterestNet = 0, lockedLiquidity = 0, lockedInterestNet = 0;
   let nextUnlock: string | null = null;
+  let lastUnlock: string | null = null;
   let hasDayChange = false;
   const missingFx = new Set<string>();
 
@@ -480,6 +483,7 @@ export function summarize(holdings: Holding[], today: string = todayKey()): Port
       lockedLiquidity += h.valueEur;
       if (h.deposit?.atMaturityNet != null) lockedInterestNet += h.deposit.atMaturityNet * h.fx;
       if (!nextUnlock || maturity < nextUnlock) nextUnlock = maturity;
+      if (!lastUnlock || maturity > lastUnlock) lastUnlock = maturity;
     }
   }
 
@@ -506,6 +510,7 @@ export function summarize(holdings: Holding[], today: string = todayKey()): Port
     lockedLiquidity,
     lockedInterestNet,
     nextUnlock,
+    lastUnlock,
     allocation,
     classAllocation,
     missingFx: Array.from(missingFx),

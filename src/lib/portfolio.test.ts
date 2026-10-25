@@ -227,6 +227,7 @@ describe('liquidità vincolata', () => {
     const valueOf = (id: string) => holdings.find(h => h.asset.id === id)!.valueEur!;
     expect(summary.lockedLiquidity).toBeCloseTo(valueOf('a') + valueOf('b'));
     expect(summary.nextUnlock).toBe('2026-12-31');
+    expect(summary.lastUnlock).toBe('2027-06-30');
   });
 
   it('senza vincoli attivi è zero', () => {
