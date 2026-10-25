@@ -55,7 +55,7 @@ export function StatCards({ summary, loading, dayLabel = 'oggi' }: StatCardsProp
     );
   }
 
-  const { netWorth, liquidity, investments, other, investedCost, unrealizedPL, unrealizedPLPct, realizedPL, dayChange, dayChangePct, hasDayChange, accruedInterestNet, lockedLiquidity, nextUnlock, missingFx } = summary;
+  const { netWorth, liquidity, investments, other, investedCost, unrealizedPL, unrealizedPLPct, realizedPL, dayChange, dayChangePct, hasDayChange, accruedInterestNet, lockedLiquidity, nextUnlock, lockedInterestNet, missingFx } = summary;
   const share = (v: number) => (netWorth > 0 ? formatPercent(v / netWorth, { signed: false, digits: 0 }) : '—');
   const previousNetWorth = netWorth - dayChange;
 
@@ -91,20 +91,26 @@ export function StatCards({ summary, loading, dayLabel = 'oggi' }: StatCardsProp
               {hasDayChange && <span className="text-muted-foreground"> {dayLabel}</span>}
             </span>
           </KpiChip>
-          <KpiChip label={<>Plusvalenze latenti <InfoHint text={HINTS.unrealized} /></>} className={lockedLiquidity > 0 ? undefined : 'col-span-2'}>
-            <Trend value={unrealizedPL} showIcon={false} className="text-lg font-semibold" />
-            <span className="block text-xs">
-              <Trend pct={unrealizedPLPct} /> <span className="text-muted-foreground">su <Money value={investedCost} /> investiti</span>
-            </span>
-          </KpiChip>
           {lockedLiquidity > 0 && (
             <KpiChip label={<>Liquidità vincolata <InfoHint text={HINTS.locked} /></>}>
               <Money value={lockedLiquidity} className="text-lg font-semibold" />
               <span className="block text-xs text-muted-foreground">
                 {nextUnlock ? `fino al ${format(parseISO(nextUnlock), 'dd/MM/yyyy')}` : 'nei conti deposito'}
               </span>
+              {lockedInterestNet > 0 && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  interessi <Money value={lockedInterestNet} signed className="text-positive" />
+                  <InfoHint text={HINTS.lockedInterest} />
+                </span>
+              )}
             </KpiChip>
           )}
+          <KpiChip label={<>Plusvalenze latenti <InfoHint text={HINTS.unrealized} /></>} className={lockedLiquidity > 0 ? undefined : 'col-span-2'}>
+            <Trend value={unrealizedPL} showIcon={false} className="text-lg font-semibold" />
+            <span className="block text-xs">
+              <Trend pct={unrealizedPLPct} /> <span className="text-muted-foreground">su <Money value={investedCost} /> investiti</span>
+            </span>
+          </KpiChip>
         </div>
       </Card>
 
@@ -140,6 +146,12 @@ export function StatCards({ summary, loading, dayLabel = 'oggi' }: StatCardsProp
                     <InfoHint text={HINTS.locked} />
                     {nextUnlock && <span>fino al {format(parseISO(nextUnlock), 'dd/MM/yyyy')}</span>}
                   </p>
+                  {lockedInterestNet > 0 && (
+                    <p className="flex flex-wrap items-center gap-x-1">
+                      interessi a scadenza <Money value={lockedInterestNet} className="text-positive" signed />
+                      <InfoHint text={HINTS.lockedInterest} />
+                    </p>
+                  )}
                 </>
               ) : (
                 <p>{share(liquidity)} del patrimonio</p>
