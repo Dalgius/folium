@@ -55,7 +55,7 @@ export function StatCards({ summary, loading, dayLabel = 'oggi' }: StatCardsProp
     );
   }
 
-  const { netWorth, liquidity, investments, other, investedCost, unrealizedPL, unrealizedPLPct, realizedPL, dayChange, dayChangePct, hasDayChange, accruedInterestNet, lockedLiquidity, nextUnlock, lockedInterestNet, missingFx } = summary;
+  const { netWorth, liquidity, investments, other, investedCost, unrealizedPL, unrealizedPLPct, realizedPL, dayChange, dayChangePct, hasDayChange, accruedInterestNet, lockedLiquidity, lastUnlock, lockedInterestNet, missingFx } = summary;
   const share = (v: number) => (netWorth > 0 ? formatPercent(v / netWorth, { signed: false, digits: 0 }) : '—');
   const previousNetWorth = netWorth - dayChange;
 
@@ -95,7 +95,7 @@ export function StatCards({ summary, loading, dayLabel = 'oggi' }: StatCardsProp
             <KpiChip label={<>Liquidità vincolata <InfoHint text={HINTS.locked} /></>}>
               <Money value={lockedLiquidity} className="text-lg font-semibold" />
               <span className="block text-xs text-muted-foreground">
-                {nextUnlock ? `fino al ${format(parseISO(nextUnlock), 'dd/MM/yyyy')}` : 'nei conti deposito'}
+                {lastUnlock ? `fino al ${format(parseISO(lastUnlock), 'dd/MM/yyyy')}` : 'nei conti deposito'}
               </span>
               {lockedInterestNet > 0 && (
                 <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -144,7 +144,7 @@ export function StatCards({ summary, loading, dayLabel = 'oggi' }: StatCardsProp
                   <p className="flex flex-wrap items-center gap-x-1">
                     vincolata <Money value={lockedLiquidity} />
                     <InfoHint text={HINTS.locked} />
-                    {nextUnlock && <span>fino al {format(parseISO(nextUnlock), 'dd/MM/yyyy')}</span>}
+                    {lastUnlock && <span>fino al {format(parseISO(lastUnlock), 'dd/MM/yyyy')}</span>}
                   </p>
                   {lockedInterestNet > 0 && (
                     <p className="flex flex-wrap items-center gap-x-1">
