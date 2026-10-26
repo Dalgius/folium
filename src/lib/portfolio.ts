@@ -667,6 +667,11 @@ export interface IntradayInput {
   fxHistory: Record<string, PricePoint[]>;
   fxNow: FxRates;
   maxPoints?: number;
+  /**
+   * Aggiunge in testa la chiusura precedente e in coda il valore attuale (prezzi e cambi live):
+   * la variazione del grafico coincide con quella "oggi / ultima seduta" delle card.
+   */
+  anchorToPreviousClose?: boolean;
 }
 
 /** Posizione valida in un certo giorno, per giorni crescenti. */
@@ -691,7 +696,7 @@ function positionCursor(asset: Asset) {
  * l'unione degli orari di tutti i titoli; ogni prezzo resta valido fino al
  * successivo e, prima del primo, vale il primo noto (le borse aprono a orari diversi).
  */
-export function buildIntradayHistory({ assets, prices, fxHistory, fxNow, maxPoints = 400 }: IntradayInput): HistoryPoint[] {
+export function buildIntradayHistory({ assets, prices, fxHistory, fxNow, maxPoints = 400, anchorToPreviousClose = false }: IntradayInput): HistoryPoint[] {
   const market = assets.filter(a => isMarketAsset(a.type));
   const manual = assets.filter(a => !isMarketAsset(a.type));
 
@@ -743,7 +748,38 @@ export function buildIntradayHistory({ assets, prices, fxHistory, fxNow, maxPoin
     return { date: time, netWorth: investments + cash, investments, invested, cash };
   });
 
-  return downsample(points, maxPoints);
+  const sampled = downsample(points, maxPoints);
+  if (!anchorToPreviousClose || sampled.length === 0) return sampled;
+
+  // Stessi numeri delle card: posizioni attuali, prezzi live e cambi attuali
+  const today = todayKey();
+  const live = (previousClose: boolean) => {
+    let investments = 0;
+    let invested = 0;
+    let cash = 0;
+    for (const asset of market) {
+      const rate = fxRate(fxNow, asset.currency);
+      if (rate === null) continue;
+      const position = computePosition(asset.transactions);
+      const price = lastPrice(asset) ?? position.avgPrice;
+      const unit = previousClose ? price - (asset.dailyChange ?? 0) : price;
+      investments += position.quantity * unit * rate;
+      invested += position.netInvested * rate;
+    }
+    for (const { asset, history, movements } of manualState) {
+      const rate = fxRate(fxNow, asset.currency);
+      if (rate !== null) cash += accountBalanceAt(history, movements, today) * rate;
+    }
+    return { netWorth: investments + cash, investments, invested, cash };
+  };
+  const firstTime = Date.parse(sampled[0].date);
+  const lastTime = Date.parse(sampled[sampled.length - 1].date);
+  const nowTime = Math.max(Date.now(), lastTime + 60_000);
+  return [
+    { date: new Date(firstTime - 60_000).toISOString(), ...live(true) },
+    ...sampled,
+    { date: new Date(nowTime).toISOString(), ...live(false) },
+  ];
 }
 
 export function downsample<T>(points: T[], maxPoints: number): T[] {

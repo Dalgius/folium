@@ -465,3 +465,26 @@ describe('libro del conto corrente', () => {
     expect(latestBalance(legacy)).toBe(5000);
   });
 });
+
+describe('grafico 1G ancorato alla chiusura precedente', () => {
+  it('parte dalla chiusura di ieri e arriva al valore attuale, come la card "oggi"', () => {
+    const now = new Date();
+    const at = (h: number) => { const d = new Date(now); d.setHours(h, 0, 0, 0); return d.toISOString(); };
+    const asset = etf({ lastPrice: 130, dailyChange: 2 }); // 20 quote, chiusura di ieri 128
+    const points = buildIntradayHistory({
+      assets: [asset],
+      // l'apertura di oggi (129) è diversa dalla chiusura di ieri
+      prices: { 'VWCE.DE': [{ date: at(9), close: 129 }, { date: at(12), close: 129.5 }] },
+      fxHistory: {},
+      fxNow: { EUR: 1 },
+      anchorToPreviousClose: true,
+    });
+    const summary = summarize(buildHoldings([asset], { EUR: 1 }));
+    const first = points[0];
+    const last = points[points.length - 1];
+    expect(first.investments).toBeCloseTo(20 * 128);
+    expect(last.investments).toBeCloseTo(summary.investments);
+    expect(last.investments - first.investments).toBeCloseTo(summary.dayChange);
+    expect((last.investments - first.investments) / first.investments).toBeCloseTo(summary.dayChangePct);
+  });
+});
