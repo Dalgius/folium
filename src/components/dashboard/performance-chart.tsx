@@ -88,10 +88,11 @@ export function PerformanceChart({ assets, fx, hasInvestments }: PerformanceChar
 
   const change = useMemo(() => {
     if (!current || !first) return { gain: 0, pct: 0 };
-    if (mode === 'investments') return periodReturn(data.slice(0, endIndex + 1));
+    // Su 1G nessun acquisto avviene durante la giornata: variazione semplice, come la card "oggi"
+    if (mode === 'investments' && period !== '1G') return periodReturn(data.slice(0, endIndex + 1));
     const gain = current.value - first.value;
     return { gain, pct: first.value > 0 ? gain / first.value : 0 };
-  }, [data, endIndex, current, first, mode]);
+  }, [data, endIndex, current, first, mode, period]);
 
   const intraday = isIntradayPeriod(period);
   const spanDays = data.length > 1 ? differenceInCalendarDays(parseISO(data[data.length - 1].date), parseISO(data[0].date)) : 0;
@@ -134,15 +135,15 @@ export function PerformanceChart({ assets, fx, hasInvestments }: PerformanceChar
                   <span className="text-muted-foreground">
                     {hoverIndex !== null && current
                       ? `al ${format(parseISO(current.date), pointFormat, { locale: it })}`
-                      : mode === 'investments'
-                        ? (
-                          <span className="inline-flex items-center gap-1">
-                            rendimento nel periodo, al netto dei versamenti
-                            <InfoHint text={HINTS.periodReturn} />
-                          </span>
-                        )
-                        : period === '1G'
-                          ? "nell'ultima seduta"
+                      : period === '1G'
+                        ? 'dalla chiusura precedente'
+                        : mode === 'investments'
+                          ? (
+                            <span className="inline-flex items-center gap-1">
+                              rendimento nel periodo, al netto dei versamenti
+                              <InfoHint text={HINTS.periodReturn} />
+                            </span>
+                          )
                           : 'nel periodo'}
                   </span>
                 </div>
@@ -165,7 +166,8 @@ export function PerformanceChart({ assets, fx, hasInvestments }: PerformanceChar
         </div>
       )}
 
-      <div className="mt-4 min-h-[260px] w-full flex-1 sm:min-h-[300px]">
+      {/* Su touch il punto toccato non resta selezionato: al rilascio si torna al totale del periodo */}
+      <div className="mt-4 min-h-[260px] w-full flex-1 sm:min-h-[300px]" onTouchEnd={() => setHoverIndex(null)}>
         {loading ? (
           <Skeleton className="h-full w-full" />
         ) : isEmpty ? (

@@ -121,7 +121,8 @@ export function usePortfolioHistory(assets: Asset[], fx: FxRates, period: Period
   const points = useMemo(() => {
     if (!data || assets.length === 0) return [];
     if (intraday) {
-      return buildIntradayHistory({ assets, prices: data.prices, fxHistory: data.fxHistory, fxNow: fx });
+      // Su 1G il grafico parte dalla chiusura precedente e arriva al valore attuale, come le card
+      return buildIntradayHistory({ assets, prices: data.prices, fxHistory: data.fxHistory, fxNow: fx, anchorToPreviousClose: period === '1G' });
     }
     const today = todayKey();
     // Aggiunge il prezzo live di oggi se lo storico non lo contiene ancora
@@ -135,7 +136,7 @@ export function usePortfolioHistory(assets: Asset[], fx: FxRates, period: Period
       }
     }
     return buildHistory({ assets, prices, fxHistory: data.fxHistory, fxNow: fx, start, end: today });
-  }, [data, assets, fx, start, intraday]);
+  }, [data, assets, fx, start, intraday, period]);
 
   return { points, loading, error };
 }
