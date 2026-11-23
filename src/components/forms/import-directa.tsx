@@ -7,8 +7,7 @@ import { assetTypeFromQuoteType, typeMeta } from '@/lib/asset-types';
 import { isDirectaPortfolio, parseDirectaPortfolio, type DirectaPosition } from '@/lib/importers/directa';
 import { todayInput } from '@/lib/forms';
 import { computePosition } from '@/lib/portfolio';
-import { getQuote, matchSecurities, type Quote, type SecurityMatch } from '@/lib/market';
-import { searchSecurities } from '@/services/finance.service';
+import { getQuote, matchSecurities, searchSecurities, type Quote, type SecurityMatch } from '@/lib/market';
 import { newId } from '@/services/asset.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -172,7 +171,7 @@ export function ImportDirecta({ assets, onImport, onBack }: ImportDirectaProps) 
       const milan = await getQuote(`${symbol}.MI`);
       if (milan) return milan;
     }
-    const [first] = await searchSecurities(symbol);
+    const [first] = (await searchSecurities(symbol)).results;
     return first ? getQuote(first.ticker) : null;
   }
 

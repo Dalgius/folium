@@ -1,16 +1,13 @@
 'use client';
 
 import type { PricePoint } from '@/lib/portfolio';
-import type { Quote } from '@/lib/yahoo-chart';
-import { searchSecurities, type SearchResult } from '@/services/finance.service';
+import type { Quote, SearchResult } from '@/lib/yahoo-chart';
 
-export type { Quote } from '@/lib/yahoo-chart';
-export type { SearchResult } from '@/services/finance.service';
+export type { Quote, SearchResult } from '@/lib/yahoo-chart';
 
 /**
- * Dati di mercato per il browser. Prezzi e storico arrivano dalle route Edge
- * (/api/quotes, /api/history): i server Node di Vercel sono bloccati da Yahoo.
- * La ricerca resta una server action, perché quell'endpoint non è bloccato.
+ * Dati di mercato per il browser. Prezzi, storico e ricerca arrivano dalle route Edge
+ * (/api/quotes, /api/history, /api/search): i server Node di Vercel sono bloccati da Yahoo.
  */
 
 const CHUNK = 25;
@@ -51,6 +48,20 @@ export async function getQuotes(tickers: string[], { fresh = false }: FetchOptio
     ),
   );
   return Object.assign({}, ...parts.map(p => p?.quotes ?? {}));
+}
+
+export interface SearchOutcome {
+  results: SearchResult[];
+  /** false se la ricerca non ha risposto (Yahoo o la rete), non semplicemente senza risultati */
+  ok: boolean;
+}
+
+/** Ricerca di titoli per nome, ticker o ISIN. */
+export async function searchSecurities(query: string): Promise<SearchOutcome> {
+  const q = query.trim();
+  if (q.length < 2) return { results: [], ok: true };
+  const data = await getJson<{ results?: SearchResult[] }>(`/api/search?q=${encodeURIComponent(q)}`);
+  return data ? { results: data.results ?? [], ok: true } : { results: [], ok: false };
 }
 
 export async function getQuote(ticker: string): Promise<Quote | null> {
@@ -118,15 +129,19 @@ export async function getIntradayFxHistory(currencies: string[], range: Intraday
  * Ricerca titoli. Cercando un ticker senza suffisso ("ISP") la quotazione di
  * Borsa Italiana va in cima; se Yahoo non la propone, la verifichiamo direttamente.
  */
-export async function searchWithMilan(query: string): Promise<SearchResult[]> {
+export async function searchWithMilan(query: string): Promise<SearchOutcome> {
   const q = query.trim();
-  const found = (await searchSecurities(q)) ?? [];
+  const { results, ok } = await searchSecurities(q);
+  const found = [...results];
   const milan = `${q.toUpperCase()}.MI`;
   if (/^[A-Z0-9]{1,5}$/i.test(q) && !found.some(r => r.ticker.toUpperCase() === milan)) {
     const quote = await getQuote(milan);
     if (quote) found.unshift({ ticker: milan, name: quote.name, exchange: 'Milano', type: quote.quoteType ?? 'EQUITY' });
   }
-  return [...found].sort((a, b) => Number(b.ticker.toUpperCase() === milan) - Number(a.ticker.toUpperCase() === milan));
+  return {
+    results: found.sort((a, b) => Number(b.ticker.toUpperCase() === milan) - Number(a.ticker.toUpperCase() === milan)),
+    ok,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -192,7 +207,7 @@ export async function matchSecurities(items: SecurityToMatch[]): Promise<MatchRe
   const pending = items.map((item, i) => ({ item, i })).filter(({ i }) => !matches[i]);
   const found = await mapLimit(pending, 2, async ({ item }) => {
     if (!/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(item.isin)) return null;
-    const results = (await searchSecurities(item.isin)) ?? [];
+    const { results } = await searchSecurities(item.isin);
     if (results.length === 0) return null;
     searchAnswered = true;
     return (

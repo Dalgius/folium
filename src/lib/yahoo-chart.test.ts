@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { parseChartHistory, parseChartQuote } from './yahoo-chart';
+import { parseChartHistory, parseChartQuote, parseSearchResults } from './yahoo-chart';
 import { GET as quotesRoute } from '@/app/api/quotes/route';
 import { GET as historyRoute } from '@/app/api/history/route';
+import { GET as searchRoute } from '@/app/api/search/route';
 
 const day = (d: string) => Math.floor(new Date(`${d}T08:00:00Z`).getTime() / 1000);
 
@@ -115,5 +116,50 @@ describe('route Edge', () => {
     expect((await ok.json()).history['ISP.MI']).toHaveLength(3);
     const bad = await historyRoute(new Request('https://folium.test/api/history?symbols=ISP.MI&start=ieri'));
     expect(bad.status).toBe(400);
+  });
+});
+
+const searchJson = {
+  quotes: [
+    { symbol: 'AAPL', shortname: 'Apple Inc.', longname: 'Apple Inc.', exchDisp: 'NASDAQ', quoteType: 'EQUITY', isYahooFinance: true },
+    { symbol: 'VWCE.DE', shortname: 'Vanguard FTSE All-World', exchDisp: 'XETRA', quoteType: 'ETF', isYahooFinance: true },
+    { symbol: 'EURUSD=X', shortname: 'EUR/USD', quoteType: 'CURRENCY', isYahooFinance: true },
+    { symbol: 'APC.F', quoteType: 'OPTION', isYahooFinance: true },
+    { index: 'news', isYahooFinance: false },
+  ],
+};
+
+describe('parseSearchResults', () => {
+  it('tiene titoli, ETF, fondi e crypto con nome e borsa', () => {
+    expect(parseSearchResults(searchJson)).toEqual([
+      { ticker: 'AAPL', name: 'Apple Inc.', exchange: 'NASDAQ', type: 'EQUITY' },
+      { ticker: 'VWCE.DE', name: 'Vanguard FTSE All-World', exchange: 'XETRA', type: 'ETF' },
+    ]);
+    expect(parseSearchResults(null)).toEqual([]);
+  });
+});
+
+describe('route Edge di ricerca', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('passa al secondo host se il primo risponde 429 e mette in cache i risultati', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('Too Many Requests', { status: 429 }))
+      .mockResolvedValueOnce(Response.json(searchJson));
+    vi.stubGlobal('fetch', fetchMock);
+    const response = await searchRoute(new Request('https://folium.test/api/search?q=apple'));
+    const body = await response.json();
+    expect(fetchMock.mock.calls[0][0]).toContain('query1.finance.yahoo.com/v1/finance/search?q=apple');
+    expect(fetchMock.mock.calls[1][0]).toContain('query2.finance.yahoo.com');
+    expect(body.results.map((r: { ticker: string }) => r.ticker)).toEqual(['AAPL', 'VWCE.DE']);
+    expect(response.headers.get('Cache-Control')).toContain('s-maxage');
+  });
+
+  it('segnala l\'errore senza metterlo in cache', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('Too Many Requests', { status: 429 })));
+    const response = await searchRoute(new Request('https://folium.test/api/search?q=apple'));
+    expect(response.status).toBe(502);
+    expect((await response.json()).results).toEqual([]);
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
   });
 });

@@ -1,5 +1,5 @@
 /**
- * Richieste all'endpoint "chart" di Yahoo dalle funzioni Edge di Vercel.
+ * Richieste a Yahoo (grafici e ricerca) dalle funzioni Edge di Vercel.
  * I server Node di Vercel (AWS) ricevono "Too Many Requests" su ogni richiesta;
  * le funzioni Edge escono da una rete diversa.
  */
@@ -30,6 +30,19 @@ export async function fetchChart(symbol: string, params: Record<string, string>)
     lastError = new YahooError(`${host} ${response.status}: ${text}`, response.status);
     // Simbolo inesistente: inutile provare l'altro host
     if (response.status === 404) break;
+  }
+  throw lastError ?? new YahooError('Nessuna risposta da Yahoo', 0);
+}
+
+/** Ricerca di titoli per nome, ticker o ISIN, provando entrambi gli host di Yahoo. */
+export async function fetchSearch(query: string): Promise<unknown> {
+  const params = new URLSearchParams({ q: query, quotesCount: '12', newsCount: '0', listsCount: '0', enableFuzzyQuery: 'false' });
+  let lastError: YahooError | null = null;
+  for (const host of HOSTS) {
+    const response = await fetch(`https://${host}/v1/finance/search?${params}`, { headers: HEADERS, cache: 'no-store' });
+    if (response.ok) return response.json();
+    const text = (await response.text()).slice(0, 120).trim();
+    lastError = new YahooError(`${host} ${response.status}: ${text}`, response.status);
   }
   throw lastError ?? new YahooError('Nessuna risposta da Yahoo', 0);
 }
