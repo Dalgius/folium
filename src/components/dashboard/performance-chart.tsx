@@ -82,6 +82,30 @@ export function PerformanceChart({ assets, fx, hasInvestments }: PerformanceChar
     [points, mode],
   );
 
+  // Scala sull'andamento del valore, non sullo zero né sul capitale investito:
+  // così le oscillazioni restano leggibili anche quando sono piccole rispetto al totale
+  const { yDomain, yTicks } = useMemo(() => {
+    const values = data.map(d => d.value).filter(v => Number.isFinite(v));
+    if (!values.length) return { yDomain: undefined, yTicks: undefined };
+    const lo = Math.min(...values);
+    const hi = Math.max(...values);
+    const pad = Math.max((hi - lo) * 0.15, Math.abs(hi) * 0.002, 1);
+    // Etichette "tonde" a passo costante (1, 2, 2,5 o 5 per una potenza di 10)
+    const rough = (hi - lo + 2 * pad) / 4;
+    const power = 10 ** Math.floor(Math.log10(rough));
+    const step = ([1, 2, 2.5, 5, 10].find(m => m * power >= rough) ?? 10) * power;
+    const min = Math.max(0, Math.floor((lo - pad) / step) * step);
+    const max = Math.ceil((hi + pad) / step) * step;
+    const ticks: number[] = [];
+    for (let v = min; v <= max + step / 2; v += step) ticks.push(Math.round(v * 100) / 100);
+    return { yDomain: [min, max] as [number, number], yTicks: ticks };
+  }, [data]);
+  const yRange = yDomain ? yDomain[1] - yDomain[0] : 0;
+  const yTick = (v: number) =>
+    yRange >= 5000 ? formatCurrency(v, 'EUR', { compact: true }) : `${Math.round(v).toLocaleString('it-IT')} €`;
+  const lastInvested = data.length ? data[data.length - 1].invested : 0;
+  const investedVisible = !!yDomain && lastInvested >= yDomain[0] && lastInvested <= yDomain[1];
+
   const endIndex = hoverIndex ?? data.length - 1;
   const current = data[endIndex];
   const first = data[0];
@@ -161,6 +185,8 @@ export function PerformanceChart({ assets, fx, hasInvestments }: PerformanceChar
           </span>
           <span className="flex items-center gap-1.5">
             <span className="h-0 w-4 border-t-2 border-dashed border-muted-foreground" /> Capitale investito
+            {/* Fuori dalla scala del grafico la linea non si vede: se ne mostra il valore */}
+            {!investedVisible && <Money value={lastInvested} className="font-medium text-foreground" />}
             <InfoHint text={HINTS.invested} />
           </span>
         </div>
@@ -206,10 +232,11 @@ export function PerformanceChart({ assets, fx, hasInvestments }: PerformanceChar
                 tickLine={false}
                 axisLine={false}
                 width={hidden ? 8 : 64}
-                tickCount={5}
-                domain={[(min: number) => Math.max(0, min - (min * 0.04)), 'auto']}
+                domain={yDomain ?? ['auto', 'auto']}
+                ticks={yTicks}
+                allowDataOverflow
                 tick={hidden ? false : { fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                tickFormatter={(v: number) => formatCurrency(v, 'EUR', { compact: true })}
+                tickFormatter={yTick}
               />
               <Tooltip
                 cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1 }}
