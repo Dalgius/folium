@@ -39,6 +39,7 @@ export function SecurityForm({ assets, onSubmit, onBack }: { assets: Asset[]; on
   const [term, setTerm] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const [searchDown, setSearchDown] = useState(false);
   const [loadingQuote, setLoadingQuote] = useState(false);
   const [selected, setSelected] = useState<Selected | null>(null);
 
@@ -59,7 +60,8 @@ export function SecurityForm({ assets, onSubmit, onBack }: { assets: Asset[]; on
     const timer = setTimeout(async () => {
       const found = await searchWithMilan(q);
       if (!cancelled) {
-        setResults(found);
+        setResults(found.results);
+        setSearchDown(!found.ok);
         setSearching(false);
       }
     }, 300);
@@ -156,7 +158,11 @@ export function SecurityForm({ assets, onSubmit, onBack }: { assets: Asset[]; on
             </ul>
           )}
           {!searching && term.trim().length >= 2 && results.length === 0 && (
-            <p className="py-4 text-center text-sm text-muted-foreground">Nessun risultato. Prova con il ticker o l&apos;ISIN.</p>
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              {searchDown
+                ? 'Ricerca non disponibile al momento: scrivi il ticker (es. ISP, AAPL, VWCE.DE).'
+                : 'Nessun risultato. Prova con il ticker o l\'ISIN.'}
+            </p>
           )}
           {onBack && (
             <DialogFooter className="pt-2">

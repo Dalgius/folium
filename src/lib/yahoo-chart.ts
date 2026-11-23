@@ -117,3 +117,29 @@ export function parseChartQuote(json: unknown, requested: string): Quote | null 
     quoteType: meta.instrumentType,
   };
 }
+
+export interface SearchResult {
+  ticker: string;
+  name: string;
+  exchange: string;
+  type: string;
+}
+
+const SEARCHABLE_TYPES = new Set(['EQUITY', 'ETF', 'MUTUALFUND', 'CRYPTOCURRENCY']);
+
+/** Risultati della ricerca di Yahoo (/v1/finance/search): solo titoli, ETF, fondi e crypto. */
+export function parseSearchResults(json: unknown): SearchResult[] {
+  const quotes = (json as { quotes?: unknown[] } | null)?.quotes;
+  if (!Array.isArray(quotes)) return [];
+  return quotes.flatMap((item): SearchResult[] => {
+    const quote = item as Record<string, unknown>;
+    if (quote.isYahooFinance === false || typeof quote.symbol !== 'string') return [];
+    if (!SEARCHABLE_TYPES.has(String(quote.quoteType)) || quote.symbol.includes('=')) return [];
+    return [{
+      ticker: quote.symbol,
+      name: String(quote.longname ?? quote.shortname ?? quote.symbol),
+      exchange: String(quote.exchDisp ?? quote.exchange ?? ''),
+      type: String(quote.quoteType),
+    }];
+  });
+}
