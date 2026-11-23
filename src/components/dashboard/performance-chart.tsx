@@ -77,10 +77,13 @@ export function PerformanceChart({ assets, fx, hasInvestments }: PerformanceChar
     savePrefs({ period, mode: value });
   };
 
-  const data = useMemo(
-    () => points.map(p => ({ ...p, value: mode === 'netWorth' ? p.netWorth : p.investments })),
-    [points, mode],
-  );
+  const data = useMemo(() => {
+    const mapped = points.map(p => ({ ...p, value: mode === 'netWorth' ? p.netWorth : p.investments }));
+    if (mode !== 'investments') return mapped;
+    // Prima del primo acquisto gli investimenti valgono 0: non si mostrano, così la scala non parte da zero
+    const first = mapped.findIndex(p => p.investments > 0 || p.invested > 0);
+    return first > 0 ? mapped.slice(first) : mapped;
+  }, [points, mode]);
 
   // Scala sull'andamento del valore, non sullo zero né sul capitale investito:
   // così le oscillazioni restano leggibili anche quando sono piccole rispetto al totale
